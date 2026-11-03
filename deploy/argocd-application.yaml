@@ -1,0 +1,23 @@
+# Argo CD app for pdf-edit. Applied once by hand:
+#   kubectl apply -f deploy/argocd-application.yaml
+# After that Argo CD keeps the cluster matching k8s/ on main; the GitHub
+# Actions build pins each new image tag there.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: pdf-edit
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/daav817/pdf-edit.git
+    targetRevision: main
+    path: k8s
+  destination:
+    server: https://kubernetes.default.svc
+    # Same namespace as energia-app: uses its ghcr-pull-secret and energia-secrets.
+    namespace: default
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
