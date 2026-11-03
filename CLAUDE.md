@@ -101,6 +101,7 @@ pdf-edit/
 │     ├─ OrganizeScreen.tsx      Organize pages: drag to reorder, turn, remove; Apply (undoable) or save
 │     ├─ StatusBanner.tsx        message banner used by the page screens
 │     ├─ pages.ts                split/merge/organize API calls + page-list wording ("1, 3, 5–8")
+│     ├─ DrivePicker.tsx, drive.ts  Google Drive browser (Import, Merge → From Google Drive)
 │     ├─ MainMenu.tsx, CloseFileDialog.tsx, AuthGate.tsx
 │     ├─ types.ts                FormField, TextEdit, RedactRegion, helpers
 │     └─ viewer/viewer.ts,.css   preview viewer page
@@ -110,12 +111,13 @@ pdf-edit/
    ├─ app/
    │  ├─ main.py      routes; serves client/dist (STATIC_DIR) with SPA fallback
    │  ├─ auth.py      JWT verify, login proxy to energia-app, session cookie
+   │  ├─ drive.py     Google Drive list/download via energia-app's Drive routes (user's token)
    │  ├─ coords.py    NormRect ⇄ PyMuPDF coordinates
    │  ├─ redact.py    search + permanent redaction (text, pixels, line art, annots, TOC, metadata)
    │  ├─ textedit.py  remove original words under edited text
    │  ├─ pages.py     split (zip), merge, organize
    │  └─ export.py    txt/docx/html/md/json/rtf with Tesseract OCR fallback
-   └─ tests/          pytest (52 tests): conftest, test_redact, test_api, test_textedit
+   └─ tests/          pytest (59 tests): conftest, test_redact, test_api, test_textedit, test_drive
 ```
 
 ## Commands (Windows; root folder)
@@ -268,6 +270,16 @@ Organize screen done (2026-11-03): drag tiles (or ‹ ›) to reorder, turn left
 right, remove/restore, Turn all, Reset. Apply bakes edits in and replaces the
 open file as one undo step (blocked while redaction marks are unapplied);
 "Save as new PDF" downloads without changing the open file.
+
+Google Drive import done (2026-11-03): ☰ → Import from Google Drive, start
+screen, Merge → From Google Drive (several at once). No Google setup in
+pdf-edit: the server calls energia-app's `/api/google-drive/files` and
+`/files/{id}/download` with the user's energia token (Bearer), so each person
+sees their own Drive through the Google connection they made in energia-app
+(account menu → Connect Google). Not connected → 409 with that hint
+(`ENERGIA_PUBLIC_URL`). Lists folders, PDFs, JPG/PNG, Docs/Slides (arrive as
+PDF). energia-app's `GOOGLE_DRIVE_FOLDER_ID` decides the starting folder.
+Cloudflare Access: user declined (2026-11-03); sign-in stays energia-app only.
 
 Undo/redo keys accept Z/Y in either case (Caps Lock; Playwright's "Control+Z").
 

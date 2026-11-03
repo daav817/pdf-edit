@@ -1067,3 +1067,155 @@ body {
   font-size: 0.75rem;
   color: var(--muted);
 }
+
+/* --- Google Drive picker -------------------------------------------------- */
+
+.empty-actions {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.drive-dialog {
+  width: min(100%, 40rem);
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  max-height: min(42rem, calc(100vh - 3rem));
+}
+
+.drive-head {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.drive-head .dialog-title {
+  margin: 0;
+  flex: 1;
+}
+
+.drive-search input {
+  width: 14rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.85rem;
+}
+
+.drive-crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.2rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.drive-crumb {
+  border: none;
+  background: none;
+  color: var(--accent-hover);
+  font: inherit;
+  cursor: pointer;
+  padding: 0.1rem 0.2rem;
+}
+
+.drive-crumb:hover {
+  text-decoration: underline;
+}
+
+.drive-crumb-current {
+  color: var(--text);
+  padding: 0.1rem 0.2rem;
+}
+
+.drive-crumb-sep {
+  margin: 0 0.15rem;
+}
+
+.drive-list {
+  flex: 1;
+  min-height: 14rem;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  padding: 0.3rem;
+}
+
+.drive-item {
+  display: grid;
+  grid-template-columns: 1.5rem 1fr auto;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.88rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.drive-item:hover:not(:disabled) {
+  background: var(--surface-2);
+}
+
+.drive-item.is-selected {
+  background: rgba(91, 141, 239, 0.18);
+  border-color: var(--accent);
+}
+
+.drive-item-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.drive-item-note {
+  font-size: 0.78rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.drive-icon {
+  color: var(--muted);
+}
+
+.drive-icon-folder {
+  color: #e3b341;
+}
+
+.drive-icon-pdf {
+  color: #e85d5d;
+}
+
+.drive-icon-image {
+  color: #5fb878;
+}
+
+.drive-icon-google {
+  color: var(--accent-hover);
+}
+
+.drive-empty {
+  margin: 2rem 1rem;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.drive-count {
+  margin-right: auto;
+  align-self: center;
+  font-size: 0.85rem;
+  color: var(--muted);
+}

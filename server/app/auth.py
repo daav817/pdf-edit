@@ -69,6 +69,11 @@ def _token_from(request: Request) -> str | None:
     return request.cookies.get(SESSION_COOKIE)
 
 
+def session_token(request: Request) -> str | None:
+    """The signed-in user's energia-app token (for calls to energia-app on their behalf)."""
+    return _token_from(request)
+
+
 def require_user(request: Request) -> User:
     """FastAPI dependency for every protected route."""
     if auth_disabled():

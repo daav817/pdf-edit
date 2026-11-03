@@ -4,6 +4,7 @@ import { PageThumb } from "./PageThumb";
 import { downloadBlob, mergePdfs } from "./pages";
 import { isImageImportFile, isPdfImportFile, pdfFileFromImage } from "./imageToPdf";
 import { StatusBanner } from "./StatusBanner";
+import { DrivePicker } from "./DrivePicker";
 
 type Props = {
   /** The file open in the editor, if any; it starts the list. */
@@ -67,6 +68,7 @@ export function MergeScreen({
   const [dragId, setDragId] = useState<string | null>(null);
   const [dropAt, setDropAt] = useState<{ id: string; after: boolean } | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [driveOpen, setDriveOpen] = useState(false);
 
   // Destroy the documents this screen opened when it closes.
   const itemsRef = useRef(items);
@@ -193,6 +195,15 @@ export function MergeScreen({
             onChange={onInput}
           />
         </label>
+        <button
+          type="button"
+          className="btn btn-sm"
+          onClick={() => setDriveOpen(true)}
+          disabled={adding}
+          title="Add files from your Google Drive"
+        >
+          From Google Drive…
+        </button>
         <span className="context-bar-divider" aria-hidden />
         <span className="context-bar-note">New file</span>
         <input
@@ -278,6 +289,9 @@ export function MergeScreen({
                   onChange={onInput}
                 />
               </label>
+              <button type="button" className="btn btn-primary" onClick={() => setDriveOpen(true)}>
+                From Google Drive…
+              </button>
             </div>
           ) : (
             <ol className="merge-list">
@@ -364,6 +378,16 @@ export function MergeScreen({
           )}
         </div>
       </main>
+      {driveOpen && (
+        <DrivePicker
+          multiple
+          onClose={() => setDriveOpen(false)}
+          onPick={(files) => {
+            setDriveOpen(false);
+            void addFiles(files);
+          }}
+        />
+      )}
     </>
   );
 }

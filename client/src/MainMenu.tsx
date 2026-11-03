@@ -23,6 +23,7 @@ type Props = {
   exportFormat: ExportFormat;
   onExportFormatChange: (format: ExportFormat) => void;
   onImport: (e: ChangeEvent<HTMLInputElement>) => void;
+  onImportDrive: () => void;
   onSave: () => void;
   onPrint: () => void;
   onSignOut?: () => void;
@@ -39,6 +40,7 @@ export function MainMenu({
   exportFormat,
   onExportFormatChange,
   onImport,
+  onImportDrive,
   onSave,
   onPrint,
   onSignOut,
@@ -84,7 +86,7 @@ export function MainMenu({
       {open && (
         <div className="main-menu-panel" role="menu">
           <label className="main-menu-item" role="menuitem">
-            Import file…
+            Import from this computer…
             <input
               type="file"
               accept="application/pdf,.pdf,image/jpeg,image/png,.jpg,.jpeg,.png"
@@ -95,6 +97,17 @@ export function MainMenu({
               }}
             />
           </label>
+          <button
+            type="button"
+            className="main-menu-item"
+            role="menuitem"
+            onClick={() => {
+              setOpen(false);
+              onImportDrive();
+            }}
+          >
+            Import from Google Drive…
+          </button>
 
           {[
             { title: "Tools", items: tools },

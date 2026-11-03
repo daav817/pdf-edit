@@ -12,12 +12,12 @@ from pathlib import Path
 from typing import Annotated
 from urllib.parse import quote
 
-from fastapi import Depends, FastAPI, File, Form, HTTPException, Response, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, Response, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, TypeAdapter, ValidationError
 
-from app import auth, export, pages, redact, textedit
+from app import auth, drive, export, pages, redact, textedit
 from app.coords import NormRect
 
 MAX_UPLOAD_BYTES = int(os.environ.get("MAX_UPLOAD_MB", "100")) * 1024 * 1024
@@ -83,6 +83,27 @@ def login(body: LoginBody, response: Response):
 @app.post("/api/auth/logout")
 def logout(response: Response):
     return auth.logout(response)
+
+
+# --- Google Drive (through energia-app) ---------------------------------------
+
+
+def _drive_token(request: Request) -> str:
+    token = auth.session_token(request)
+    if not token:
+        raise HTTPException(503, "Google Drive needs a real sign-in (not available with sign-in switched off).")
+    return token
+
+
+@app.get("/api/drive/files")
+def drive_files(request: Request, _user: User, folderId: str = "", query: str = ""):
+    return drive.list_files(_drive_token(request), folderId.strip(), query.strip()[:200])
+
+
+@app.get("/api/drive/files/{file_id}/download")
+def drive_download(request: Request, _user: User, file_id: str):
+    data, media_type, name = drive.download(_drive_token(request), file_id, MAX_UPLOAD_BYTES)
+    return download(data, media_type, name)
 
 
 @app.get("/api/auth/me")

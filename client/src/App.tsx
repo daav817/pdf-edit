@@ -17,6 +17,7 @@ import {
   previewAnnotatedPdf,
 } from "./savePdf";
 import { SplitScreen } from "./SplitScreen";
+import { DrivePicker } from "./DrivePicker";
 import { MergeScreen } from "./MergeScreen";
 import { OrganizeScreen } from "./OrganizeScreen";
 import type { MenuTool } from "./MainMenu";
@@ -160,6 +161,7 @@ export default function App({ onSignOut }: Props) {
   const [chosenPatterns, setChosenPatterns] = useState<string[]>([]);
   const [redactBusy, setRedactBusy] = useState(false);
   const [pageScreen, setPageScreen] = useState<PageScreen | null>(null);
+  const [drivePickerOpen, setDrivePickerOpen] = useState(false);
 
   const {
     state: annotations,
@@ -1013,6 +1015,7 @@ export default function App({ onSignOut }: Props) {
             exportFormat={exportFormat}
             onExportFormatChange={setExportFormat}
             onImport={onFileInput}
+            onImportDrive={() => setDrivePickerOpen(true)}
             onSave={handleExport}
             onPrint={handlePrint}
             onSignOut={onSignOut}
@@ -1218,15 +1221,20 @@ export default function App({ onSignOut }: Props) {
             </div>
             <h2>Open a PDF or image to get started</h2>
             <p>Drag and drop a PDF, JPG, or PNG here, or choose one.</p>
-            <label className="btn btn-primary">
-              Import file…
-              <input
-                type="file"
-                accept="application/pdf,.pdf,image/jpeg,image/png,.jpg,.jpeg,.png"
-                hidden
-                onChange={onFileInput}
-              />
-            </label>
+            <div className="empty-actions">
+              <label className="btn btn-primary">
+                From this computer…
+                <input
+                  type="file"
+                  accept="application/pdf,.pdf,image/jpeg,image/png,.jpg,.jpeg,.png"
+                  hidden
+                  onChange={onFileInput}
+                />
+              </label>
+              <button type="button" className="btn btn-primary" onClick={() => setDrivePickerOpen(true)}>
+                From Google Drive…
+              </button>
+            </div>
             <button
               type="button"
               className="btn"
@@ -1276,6 +1284,16 @@ export default function App({ onSignOut }: Props) {
         )}
       </main>
       </>
+      )}
+
+      {drivePickerOpen && (
+        <DrivePicker
+          onClose={() => setDrivePickerOpen(false)}
+          onPick={(picked) => {
+            setDrivePickerOpen(false);
+            if (picked[0]) void openFile(picked[0]);
+          }}
+        />
       )}
 
       {closeDialogOpen && (

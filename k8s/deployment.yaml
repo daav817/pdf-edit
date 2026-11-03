@@ -29,6 +29,10 @@ spec:
         # Sign-in requests go to energia-app inside the cluster.
         - name: ENERGIA_APP_URL
           value: http://energia.default.svc.cluster.local
+        # Where staff open energia-app; named in "connect Google" messages.
+        # Google Drive import goes through energia-app's Drive connection.
+        - name: ENERGIA_PUBLIC_URL
+          value: https://crm.energiapower.llc
         - name: COOKIE_SECURE
           value: "1"
         - name: MAX_UPLOAD_MB
