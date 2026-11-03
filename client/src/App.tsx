@@ -16,7 +16,6 @@ import { uploadToDrive, type DriveFolderRef } from "./drive";
 import {
   annotatedPdfName,
   buildAnnotatedPdf,
-  downloadAnnotatedPdf,
   previewAnnotatedPdf,
 } from "./savePdf";
 import { SplitScreen } from "./SplitScreen";
@@ -166,6 +165,7 @@ export default function App({ onSignOut }: Props) {
   const [pageScreen, setPageScreen] = useState<PageScreen | null>(null);
   const [drivePickerOpen, setDrivePickerOpen] = useState(false);
   const [saveDriveOpen, setSaveDriveOpen] = useState(false);
+  const [closeDriveOpen, setCloseDriveOpen] = useState(false);
 
   const {
     state: annotations,
@@ -321,7 +321,7 @@ export default function App({ onSignOut }: Props) {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       // The Split screen has its own keys; editor undo must not run behind it.
-      if (pageScreen || drivePickerOpen || saveDriveOpen) return;
+      if (pageScreen || drivePickerOpen || saveDriveOpen || closeDriveOpen) return;
       const mod = e.ctrlKey || e.metaKey;
       if (mod && e.key.toLowerCase() === "z" && !e.shiftKey) {
         e.preventDefault();
@@ -393,6 +393,7 @@ export default function App({ onSignOut }: Props) {
     pageScreen,
     drivePickerOpen,
     saveDriveOpen,
+    closeDriveOpen,
   ]);
 
   const onFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -739,14 +740,26 @@ export default function App({ onSignOut }: Props) {
     else closeDocument();
   };
 
-  const handleSaveAndClose = async () => {
+  /** Save the edited PDF (to this computer, or into a Drive folder), then close. */
+  const handleSaveAndClose = async (driveFolder?: DriveFolderRef) => {
     if (!file) return;
     setClosing(true);
     setError(null);
     try {
-      const filename = await downloadAnnotatedPdf(file, fields, textEdits);
+      const bytes = await buildAnnotatedPdf(file, fields, textEdits);
+      const blob = new Blob([new Uint8Array(bytes)], { type: "application/pdf" });
+      let filename = annotatedPdfName(file, fields, textEdits);
+      let where = "";
+      if (driveFolder) {
+        filename = (await uploadToDrive(blob, filename, driveFolder.id)).name;
+        where = ` to Google Drive › ${driveFolder.name}`;
+      } else {
+        const saved = await saveToComputer(blob, filename);
+        if (!saved) return; // Save-as window cancelled: keep the file open
+        filename = saved;
+      }
       closeDocument();
-      setExportStatus(`Saved ${filename} and closed it.`);
+      setExportStatus(`Saved ${filename}${where} and closed it.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Save failed.");
     } finally {
@@ -1324,9 +1337,22 @@ export default function App({ onSignOut }: Props) {
           redactionCount={redactions.length}
           redactionsApplied={fileChangedSinceSave}
           saving={closing}
-          onSaveAndClose={handleSaveAndClose}
+          onSaveAndClose={() => void handleSaveAndClose()}
+          onSaveToDriveAndClose={() => setCloseDriveOpen(true)}
           onCloseWithoutSaving={closeDocument}
           onCancel={() => setCloseDialogOpen(false)}
+        />
+      )}
+
+      {closeDialogOpen && closeDriveOpen && file && (
+        <DrivePicker
+          mode="folder"
+          saveNote={annotatedPdfName(file, fields, textEdits)}
+          onClose={() => setCloseDriveOpen(false)}
+          onPickFolder={(folder) => {
+            setCloseDriveOpen(false);
+            void handleSaveAndClose(folder);
+          }}
         />
       )}
     </div>

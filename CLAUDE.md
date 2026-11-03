@@ -291,7 +291,8 @@ Merge (Save merged PDF) and Organize (Save as new PDF) use the same Save ▾.
 every format (PDF, page PNG/JPEG, txt/docx/html/md/json/rtf). Drive upload
 (`drive.upload_file`) accepts only those extensions and checks PDF/PNG/JPEG/
 DOCX file signatures. Exports are named after the opened file, not the PDF
-title. "Save and close" in the close prompt still downloads locally.
+title. The close prompt has "Save to Drive & close" (folder picker) beside
+"Save & close" (Save-as window or download; cancelling keeps the file open).
 Cloudflare Access: user declined (2026-11-03); sign-in stays energia-app only.
 
 Undo/redo keys accept Z/Y in either case (Caps Lock; Playwright's "Control+Z").

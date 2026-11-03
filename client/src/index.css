@@ -1267,3 +1267,7 @@ body {
   justify-content: center;
   white-space: nowrap;
 }
+
+.close-file-dialog {
+  width: min(100%, 34rem);
+}
