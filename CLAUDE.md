@@ -29,7 +29,7 @@ as they land.
 - **Sign-in reuses energia-app accounts**: energia-app issues HS256 JWTs; this
   server verifies them with the same `JWT_SECRET` and stores no passwords.
 - **Runs in the home lab** k3s cluster, namespace `pdf-edit`. Reached at
-  **https://pdf.energiapower.llc** through the Cloudflare tunnel (decided
+  **https://pdf-edit.energiapower.llc** through the Cloudflare tunnel (decided
   2026-11-03; replaces the earlier LAN-only plan) and in the office at
   `pdf.192.168.1.243.nip.io`. Cloudflare Access in front of it was recommended.
   The user is buying battery backup for router and servers.
@@ -228,7 +228,7 @@ Source: https://github.com/daav817/pdf-edit (`origin`, branch `main`, public).
   allowed to write secrets). Re-run after energia-app's JWT_SECRET changes.
 - Sign-in calls energia-app at `http://energia.default.svc.cluster.local`.
 - Cloudflare (dashboard, not in the cluster): tunnel `homelab` public hostname
-  `pdf.energiapower.llc` → HTTP `pdf-edit.pdf-edit.svc.cluster.local:80`.
+  `pdf-edit.energiapower.llc` → HTTP `pdf-edit.pdf-edit.svc.cluster.local:80`.
   Cloudflare's free plan caps uploads at 100 MB (matches `MAX_UPLOAD_MB`).
 - LAN ingress: Traefik `websecure`, `pdf.192.168.1.243.nip.io`, Traefik's
   default certificate (browser warning).
@@ -275,8 +275,8 @@ Deploy set up 2026-11-03: GitHub Actions build + Argo CD, own namespace,
 version in the menu (see Deploy).
 
 Phase 1 open:
-1. Confirm the first rollout, the Cloudflare route and (recommended)
-   Cloudflare Access for pdf.energiapower.llc.
+1. Live since 2026-11-03 at pdf-edit.energiapower.llc (route checked: screen,
+   health 0.1.0.2, sign-in reaches energia-app). Open: Cloudflare Access.
 2. Retire the old projects once staff confirm.
 
 ## Roadmap (mirrors the plan doc; keep both in sync)
@@ -332,7 +332,7 @@ are met.
 - Home-lab outage. Battery backup; keep SignWell until Phase 3 is proven.
 
 **Open questions for the user** (from the plan):
-- Answered 2026-11-03: outside access yes, hostname `pdf.energiapower.llc`.
+- Answered 2026-11-03: outside access yes, hostname `pdf-edit.energiapower.llc`.
   Cloudflare Access recommended in front of the energia-app login.
 - Largest PDF staff handle (pages, MB), to size memory limits?
 

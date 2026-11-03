@@ -7,6 +7,9 @@ name: Build and Deploy pdf-edit
 "on":
   push:
     branches: [main]
+    # Notes-only changes don't build or roll out a new version.
+    paths-ignore:
+      - "**.md"
   workflow_dispatch:
 
 permissions:
