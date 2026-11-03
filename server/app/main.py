@@ -1,0 +1,193 @@
+"""pdf-edit server: the API under /api and the built React screen at /.
+
+Every PDF is handled in memory for the length of one request and never
+written to disk.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+from pathlib import Path
+from typing import Annotated
+from urllib.parse import quote
+
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Response, UploadFile
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, TypeAdapter, ValidationError
+
+from app import auth, export, pages, redact, textedit
+from app.coords import NormRect
+
+MAX_UPLOAD_BYTES = int(os.environ.get("MAX_UPLOAD_MB", "100")) * 1024 * 1024
+STATIC_DIR = Path(
+    os.environ.get("STATIC_DIR", Path(__file__).resolve().parents[2] / "client" / "dist")
+)
+
+app = FastAPI(title="pdf-edit", version="0.1.0")
+
+User = Annotated[auth.User, Depends(auth.require_user)]
+
+
+async def read_pdf(file: UploadFile) -> bytes:
+    data = await file.read(MAX_UPLOAD_BYTES + 1)
+    if len(data) > MAX_UPLOAD_BYTES:
+        raise HTTPException(413, f"File is larger than {MAX_UPLOAD_BYTES // (1024 * 1024)} MB.")
+    if not data.startswith(b"%PDF"):
+        raise HTTPException(400, f"{file.filename or 'File'} is not a PDF.")
+    return data
+
+
+def parse_json(raw: str, model, field: str):
+    try:
+        return TypeAdapter(model).validate_json(raw)
+    except ValidationError as err:
+        raise HTTPException(400, f"Invalid {field}: {err.errors()[0]['msg']}")
+
+
+def download(body: bytes, media_type: str, filename: str, headers: dict | None = None) -> Response:
+    return Response(
+        body,
+        media_type=media_type,
+        headers={
+            "Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}",
+            **(headers or {}),
+        },
+    )
+
+
+@app.exception_handler(ValueError)
+async def value_error(_request, exc: ValueError):
+    return JSONResponse({"detail": str(exc)}, status_code=400)
+
+
+# --- auth -------------------------------------------------------------------
+
+
+class LoginBody(BaseModel):
+    email: str
+    password: str
+
+
+@app.get("/api/health")
+def health():
+    return {"ok": True}
+
+
+@app.post("/api/auth/login")
+def login(body: LoginBody, response: Response):
+    return auth.login(body.email, body.password, response)
+
+
+@app.post("/api/auth/logout")
+def logout(response: Response):
+    return auth.logout(response)
+
+
+@app.get("/api/auth/me")
+def me(user: User):
+    return {"id": user.id, "org": user.org, "role": user.role, "authDisabled": auth.auth_disabled()}
+
+
+# --- redact -----------------------------------------------------------------
+
+
+@app.get("/api/redact/patterns")
+def redact_patterns(_user: User):
+    return [{"id": k, "label": label} for k, (label, _rx) in redact.PATTERNS.items()]
+
+
+@app.post("/api/redact/search")
+async def redact_search(
+    _user: User,
+    file: UploadFile = File(...),
+    terms: str = Form("[]"),
+    patterns: str = Form("[]"),
+):
+    data = await read_pdf(file)
+    return redact.search(data, parse_json(terms, list[str], "terms"), parse_json(patterns, list[str], "patterns"))
+
+
+@app.post("/api/redact")
+async def redact_apply(
+    _user: User,
+    file: UploadFile = File(...),
+    regions: str = Form("[]"),
+    terms: str = Form("[]"),
+    patterns: str = Form("[]"),
+    scrub_metadata: bool = Form(True),
+):
+    data = await read_pdf(file)
+    region_list = parse_json(regions, list[NormRect], "regions")
+    term_list = parse_json(terms, list[str], "terms")
+    pattern_list = parse_json(patterns, list[str], "patterns")
+    if not region_list and not any(t.strip() for t in term_list) and not pattern_list:
+        raise HTTPException(400, "Nothing to redact: draw an area or give search terms.")
+    out = redact.apply_redactions(data, region_list, term_list, pattern_list, scrub_metadata)
+    return download(out, "application/pdf", "redacted.pdf")
+
+
+# --- text edits -------------------------------------------------------------
+
+
+@app.post("/api/text/remove")
+async def text_remove(_user: User, file: UploadFile = File(...), regions: str = Form("[]")):
+    """Delete the original words under edited text before the new text is drawn."""
+    data = await read_pdf(file)
+    region_list = parse_json(regions, list[NormRect], "regions")
+    if not region_list:
+        raise HTTPException(400, "No areas given.")
+    return download(textedit.remove_text(data, region_list), "application/pdf", file.filename or "document.pdf")
+
+
+# --- pages ------------------------------------------------------------------
+
+
+@app.post("/api/split")
+async def split(_user: User, file: UploadFile = File(...), parts: str = Form(...)):
+    data = await read_pdf(file)
+    out = pages.split_to_zip(data, parse_json(parts, list[pages.SplitPart], "parts"))
+    stem = Path(file.filename or "document").stem
+    return download(out, "application/zip", f"{stem}_split.zip")
+
+
+@app.post("/api/merge")
+async def merge(_user: User, files: list[UploadFile] = File(...)):
+    datas = [await read_pdf(f) for f in files]
+    return download(pages.merge(datas), "application/pdf", "merged.pdf")
+
+
+@app.post("/api/organize")
+async def organize(_user: User, file: UploadFile = File(...), pages_json: str = Form(..., alias="pages")):
+    data = await read_pdf(file)
+    out = pages.organize(data, parse_json(pages_json, list[pages.PageSpec], "pages"))
+    return download(out, "application/pdf", file.filename or "document.pdf")
+
+
+# --- export -----------------------------------------------------------------
+
+
+@app.post("/api/export")
+async def export_text(_user: User, file: UploadFile = File(...), format: str = Form("txt")):
+    data = await read_pdf(file)
+    result = export.export(data, format)
+    return download(
+        result.body,
+        result.mime_type,
+        result.filename,
+        {"X-Extraction-Method": result.method},
+    )
+
+
+# --- screen -----------------------------------------------------------------
+
+if STATIC_DIR.is_dir():
+    app.mount("/assets", StaticFiles(directory=STATIC_DIR / "assets"), name="assets")
+
+    @app.get("/{path:path}", include_in_schema=False)
+    def spa(path: str):
+        target = (STATIC_DIR / path).resolve()
+        if path and target.is_file() and STATIC_DIR.resolve() in target.parents:
+            return FileResponse(target)
+        return FileResponse(STATIC_DIR / "index.html")

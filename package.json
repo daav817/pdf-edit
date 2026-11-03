@@ -1,0 +1,15 @@
+{
+  "name": "pdf-edit",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "setup": "npm install && npm install --prefix client && python -m venv server/.venv && server\\.venv\\Scripts\\python -m pip install -r server/requirements-dev.txt",
+    "dev": "concurrently -n client,server -c cyan,magenta \"npm run dev --prefix client\" \"npm run dev:server\"",
+    "dev:server": "cd server && .venv\\Scripts\\python dev.py",
+    "test": "cd server && .venv\\Scripts\\python -m pytest -q",
+    "build": "npm run build --prefix client"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

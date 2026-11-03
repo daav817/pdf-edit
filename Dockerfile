@@ -1,0 +1,26 @@
+# --- build the React screen ---------------------------------------------------
+FROM node:22-alpine AS client
+WORKDIR /client
+COPY client/package.json client/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY client/ ./
+RUN npm run build
+
+# --- runtime: FastAPI + PyMuPDF, serving the built screen ----------------------
+FROM python:3.13-slim
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    STATIC_DIR=/app/static
+# Tesseract lets export read scanned pages (OCR).
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-eng \
+ && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+COPY server/requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+COPY server/app ./app
+COPY --from=client /client/dist ./static
+RUN useradd --system --uid 10001 pdfedit
+USER 10001
+EXPOSE 8000
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips", "*"]

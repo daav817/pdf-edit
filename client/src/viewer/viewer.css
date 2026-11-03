@@ -1,0 +1,167 @@
+:root {
+  --bg: #0f1117;
+  --surface: #181b24;
+  --border: #2e3448;
+  --text: #e8eaef;
+  --muted: #8b92a8;
+  --accent: #5b8def;
+  --accent-hover: #7aa3f5;
+  --page-bg: #2a2f3d;
+  --font: "DM Sans", system-ui, sans-serif;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #f4f5f8;
+    --surface: #ffffff;
+    --border: #d5d9e3;
+    --text: #1c2230;
+    --muted: #5e667a;
+    --page-bg: #e3e6ed;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--page-bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 14px;
+}
+
+.pv-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.pv-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  font-weight: 600;
+}
+
+#pv-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pv-badge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.pv-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pv-controls button,
+.pv-controls a {
+  font: inherit;
+  padding: 5px 12px;
+  min-width: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.pv-controls button:hover {
+  border-color: var(--accent);
+}
+
+.pv-controls .pv-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.pv-controls .pv-primary:hover {
+  background: var(--accent-hover);
+}
+
+.pv-muted {
+  color: var(--muted);
+  margin-right: 8px;
+}
+
+.pv-zoom {
+  min-width: 48px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.pv-note {
+  margin: 0;
+  padding: 6px 16px;
+  font-size: 13px;
+  color: var(--muted);
+  text-align: center;
+}
+
+#pv-pages-host {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 16px 32px;
+  overflow-x: auto;
+}
+
+.pv-page {
+  display: block;
+  background: #fff;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
+  max-width: none;
+}
+
+.pv-status {
+  margin-top: 25vh;
+  color: var(--muted);
+  font-size: 15px;
+}
+
+@media print {
+  .pv-toolbar,
+  .pv-note {
+    display: none;
+  }
+
+  body {
+    background: #fff;
+  }
+
+  #pv-pages-host {
+    padding: 0;
+  }
+
+  .pv-page {
+    width: 100% !important;
+    height: auto !important;
+    margin: 0 !important;
+    box-shadow: none;
+    break-after: page;
+  }
+}

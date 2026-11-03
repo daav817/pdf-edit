@@ -1,0 +1,23 @@
+# Home network only: no Cloudflare tunnel route points here.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: pdf-edit
+  namespace: default
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+spec:
+  ingressClassName: traefik
+  rules:
+    # Same Traefik address the Argo CD ingress uses; change when a real hostname is picked.
+    - host: pdf.192.168.1.243.nip.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: pdf-edit
+                port:
+                  number: 80

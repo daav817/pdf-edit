@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Edited File Preview</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <header class="pv-toolbar">
+      <div class="pv-title">
+        <span class="pv-badge">Preview</span>
+        <span id="pv-name">Edited file</span>
+      </div>
+      <div class="pv-controls">
+        <span id="pv-pages" class="pv-muted"></span>
+        <button type="button" id="pv-zoom-out" aria-label="Zoom out">−</button>
+        <span id="pv-zoom" class="pv-zoom">100%</span>
+        <button type="button" id="pv-zoom-in" aria-label="Zoom in">+</button>
+        <button type="button" id="pv-fit">Fit width</button>
+        <button type="button" id="pv-print">Print</button>
+        <a id="pv-download" class="pv-primary" download>Download</a>
+      </div>
+    </header>
+    <p class="pv-note">Not saved yet. This shows what Save will produce.</p>
+    <main id="pv-pages-host">
+      <p id="pv-status" class="pv-status">Building the edited file…</p>
+    </main>
+    <script type="module" src="/src/viewer/viewer.ts"></script>
+  </body>
+</html>

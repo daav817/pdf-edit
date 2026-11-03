@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pdf-edit
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pdf-edit
+  template:
+    metadata:
+      labels:
+        app: pdf-edit
+    spec:
+      imagePullSecrets:
+      - name: ghcr-pull-secret
+      containers:
+      - name: pdf-edit
+        image: ghcr.io/daav817/pdf-edit:latest
+        ports:
+        - containerPort: 8000
+        env:
+        # Same secret energia-app signs its logins with, so staff use one account.
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: energia-secrets
+              key: JWT_SECRET
+        # Sign-in requests go to energia-app inside the cluster.
+        - name: ENERGIA_APP_URL
+          value: http://energia.default.svc.cluster.local
+        - name: COOKIE_SECURE
+          value: "1"
+        - name: MAX_UPLOAD_MB
+          value: "100"
+        # PDFs are processed in memory and never written to disk.
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            memory: 1Gi
+        readinessProbe:
+          httpGet:
+            path: /api/health
+            port: 8000
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /api/health
+            port: 8000
+          periodSeconds: 30
+        securityContext:
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+      volumes:
+      - name: tmp
+        emptyDir:
+          medium: Memory
+          sizeLimit: 256Mi
