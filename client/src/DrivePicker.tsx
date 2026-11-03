@@ -1,10 +1,22 @@
 import { useCallback, useEffect, useState } from "react";
-import { downloadDriveFile, listDrive, type DriveFolder, type DriveItem } from "./drive";
+import {
+  downloadDriveFile,
+  listDrive,
+  type DriveFolder,
+  type DriveFolderRef,
+  type DriveItem,
+} from "./drive";
 
 type Props = {
+  /** "open" picks files; "folder" picks where to save. */
+  mode?: "open" | "folder";
   /** Merge lets you pick several files; Import picks one. */
   multiple?: boolean;
-  onPick: (files: File[]) => void;
+  onPick?: (files: File[]) => void;
+  /** Folder mode: the folder shown when "Save here" is clicked. */
+  onPickFolder?: (folder: DriveFolderRef) => void;
+  /** Folder mode: what will be saved, e.g. "2 PDFs: a.pdf, b.pdf". */
+  saveNote?: string;
   onClose: () => void;
 };
 
@@ -39,7 +51,15 @@ const Icon = ({ item }: { item: DriveItem }) => (
 );
 
 /** Browse the signed-in person's Google Drive and pick PDFs or images. */
-export function DrivePicker({ multiple = false, onPick, onClose }: Props) {
+export function DrivePicker({
+  mode = "open",
+  multiple = false,
+  onPick,
+  onPickFolder,
+  saveNote,
+  onClose,
+}: Props) {
+  const folderMode = mode === "folder";
   const [folder, setFolder] = useState<DriveFolder | null>(null);
   const [folderId, setFolderId] = useState("");
   const [query, setQuery] = useState("");
@@ -90,7 +110,7 @@ export function DrivePicker({ multiple = false, onPick, onClose }: Props) {
       try {
         const files: File[] = [];
         for (const it of items) files.push(await downloadDriveFile(it));
-        onPick(files);
+        onPick?.(files);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Download failed.");
         setDownloading(false);
@@ -106,6 +126,7 @@ export function DrivePicker({ multiple = false, onPick, onClose }: Props) {
       openFolder(it.id);
       return;
     }
+    if (folderMode) return;
     if (multiple) {
       setSelected((prev) => (isSelected(it) ? prev.filter((s) => s.id !== it.id) : [...prev, it]));
     } else {
@@ -126,7 +147,7 @@ export function DrivePicker({ multiple = false, onPick, onClose }: Props) {
       >
         <div className="drive-head">
           <h2 id="drive-title" className="dialog-title">
-            {multiple ? "Add from Google Drive" : "Open from Google Drive"}
+            {folderMode ? "Save to Google Drive" : multiple ? "Add from Google Drive" : "Open from Google Drive"}
           </h2>
           <form
             className="drive-search"
@@ -178,10 +199,12 @@ export function DrivePicker({ multiple = false, onPick, onClose }: Props) {
                 type="button"
                 role="option"
                 aria-selected={isSelected(it)}
-                className={`drive-item${isSelected(it) ? " is-selected" : ""}`}
+                className={`drive-item${isSelected(it) ? " is-selected" : ""}${
+                  folderMode && !it.isFolder ? " is-dim" : ""
+                }`}
                 onClick={() => onItemClick(it)}
-                onDoubleClick={() => !it.isFolder && !multiple && void pick([it])}
-                disabled={downloading}
+                onDoubleClick={() => !folderMode && !it.isFolder && !multiple && void pick([it])}
+                disabled={downloading || (folderMode && !it.isFolder)}
                 title={it.isFolder ? `Open ${it.name}` : it.name}
               >
                 <Icon item={it} />
@@ -199,6 +222,11 @@ export function DrivePicker({ multiple = false, onPick, onClose }: Props) {
         )}
 
         <div className="dialog-actions">
+          {folderMode && saveNote && (
+            <span className="drive-count" title={saveNote}>
+              {saveNote}
+            </span>
+          )}
           {multiple && selected.length > 0 && (
             <span className="drive-count">
               {selected.length} selected
@@ -207,6 +235,24 @@ export function DrivePicker({ multiple = false, onPick, onClose }: Props) {
           <button type="button" className="btn" onClick={onClose} disabled={downloading}>
             Cancel
           </button>
+          {folderMode ? (
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={loading || !folder}
+              onClick={() => {
+                if (!folder) return;
+                const crumbs = folder.breadcrumbs;
+                onPickFolder?.({
+                  id: folder.folderId,
+                  name: crumbs.length ? crumbs[crumbs.length - 1].name : "My Drive",
+                });
+              }}
+              title="Save into the folder shown above"
+            >
+              Save here
+            </button>
+          ) : (
           <button
             type="button"
             className="btn btn-primary"
@@ -219,6 +265,7 @@ export function DrivePicker({ multiple = false, onPick, onClose }: Props) {
                 ? `Add ${selected.length || ""} file${selected.length === 1 ? "" : "s"}`.replace("  ", " ")
                 : "Open"}
           </button>
+          )}
         </div>
       </div>
     </div>

@@ -1219,3 +1219,40 @@ body {
   font-size: 0.85rem;
   color: var(--muted);
 }
+
+.drive-item.is-dim {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.drive-dialog .drive-count {
+  max-width: 18rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Save button with a choice of where to save. */
+.save-choice {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.save-choice-menu {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  right: 0;
+  z-index: 70;
+  min-width: 13rem;
+  display: flex;
+  flex-direction: column;
+  padding: 0.35rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+}
+
+.context-bar:has(.save-choice-menu) {
+  overflow: visible;
+}

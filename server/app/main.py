@@ -100,6 +100,18 @@ def drive_files(request: Request, _user: User, folderId: str = "", query: str = 
     return drive.list_files(_drive_token(request), folderId.strip(), query.strip()[:200])
 
 
+@app.post("/api/drive/upload")
+async def drive_upload(
+    request: Request,
+    _user: User,
+    file: UploadFile = File(...),
+    name: str = Form(""),
+    folderId: str = Form(""),
+):
+    data = await read_pdf(file)
+    return drive.upload_pdf(_drive_token(request), data, name or file.filename or "document.pdf", folderId.strip())
+
+
 @app.get("/api/drive/files/{file_id}/download")
 def drive_download(request: Request, _user: User, file_id: str):
     data, media_type, name = drive.download(_drive_token(request), file_id, MAX_UPLOAD_BYTES)

@@ -56,9 +56,12 @@ def import_kind(name: str, mime: str) -> str | None:
     return None
 
 
-def _call(token: str, path: str, timeout: float = 30):
+def _call(token: str, path: str, timeout: float = 30, data: bytes | None = None, content_type: str = ""):
+    headers = {"Authorization": f"Bearer {token}"}
+    if content_type:
+        headers["Content-Type"] = content_type
     req = urllib.request.Request(
-        f"{_base()}{path}", headers={"Authorization": f"Bearer {token}"}
+        f"{_base()}{path}", data=data, headers=headers, method="POST" if data is not None else "GET"
     )
     try:
         return urllib.request.urlopen(req, timeout=timeout)
@@ -142,3 +145,42 @@ def download(token: str, file_id: str, max_bytes: int) -> tuple[bytes, str, str]
     elif content_type.split(";")[0].strip() not in IMAGE_TYPES:
         raise HTTPException(415, f"{name} is not a PDF, JPG or PNG.")
     return data, content_type.split(";")[0].strip(), name
+
+
+def _safe_name(name: str) -> str:
+    name = re.sub(r'[/\\?%*:|"<>\x00-\x1f]', "_", name).strip(". ") or "document"
+    if not name.lower().endswith(".pdf"):
+        name += ".pdf"
+    return name[:200]
+
+
+def _multipart(fields: dict[str, str], file_field: str, filename: str, data: bytes) -> tuple[bytes, str]:
+    boundary = "pdfedit" + os.urandom(12).hex()
+    out = bytearray()
+    for key, value in fields.items():
+        out += f'--{boundary}\r\nContent-Disposition: form-data; name="{key}"\r\n\r\n'.encode()
+        out += value.encode("utf-8") + b"\r\n"
+    safe = filename.replace('"', "_")
+    out += (
+        f'--{boundary}\r\nContent-Disposition: form-data; name="{file_field}"; filename="{safe}"\r\n'
+        "Content-Type: application/pdf\r\n\r\n"
+    ).encode("utf-8")
+    out += data + b"\r\n" + f"--{boundary}--\r\n".encode()
+    return bytes(out), f"multipart/form-data; boundary={boundary}"
+
+
+def upload_pdf(token: str, data: bytes, name: str, folder_id: str) -> dict:
+    """Put a PDF into a Drive folder (as the signed-in user). Returns id, name, link."""
+    if not data.startswith(b"%PDF"):
+        raise HTTPException(400, "Only PDFs can be saved to Google Drive here.")
+    if folder_id and not re.fullmatch(r"[A-Za-z0-9_-]{1,200}", folder_id):
+        raise HTTPException(400, "Invalid Drive folder id.")
+    name = _safe_name(name)
+    body, content_type = _multipart(
+        {"folderId": folder_id or "root", "filename": name}, "file", name, data
+    )
+    with _call(token, "/api/google-drive/upload", timeout=120, data=body, content_type=content_type) as res:
+        reply = json.load(res)
+    if not reply.get("id"):
+        raise HTTPException(502, "Google Drive did not confirm the upload.")
+    return {"id": reply["id"], "name": reply.get("name") or name, "webViewLink": reply.get("webViewLink")}

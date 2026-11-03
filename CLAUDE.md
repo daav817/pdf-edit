@@ -101,7 +101,8 @@ pdf-edit/
 │     ├─ OrganizeScreen.tsx      Organize pages: drag to reorder, turn, remove; Apply (undoable) or save
 │     ├─ StatusBanner.tsx        message banner used by the page screens
 │     ├─ pages.ts                split/merge/organize API calls + page-list wording ("1, 3, 5–8")
-│     ├─ DrivePicker.tsx, drive.ts  Google Drive browser (Import, Merge → From Google Drive)
+│     ├─ DrivePicker.tsx, drive.ts  Google Drive browser: open files, or pick a folder to save into
+│     ├─ SaveChoice.tsx, saveLocal.ts  Save ▾ (this computer / Google Drive); Save-as window or download
 │     ├─ MainMenu.tsx, CloseFileDialog.tsx, AuthGate.tsx
 │     ├─ types.ts                FormField, TextEdit, RedactRegion, helpers
 │     └─ viewer/viewer.ts,.css   preview viewer page
@@ -117,7 +118,7 @@ pdf-edit/
    │  ├─ textedit.py  remove original words under edited text
    │  ├─ pages.py     split (zip), merge, organize
    │  └─ export.py    txt/docx/html/md/json/rtf with Tesseract OCR fallback
-   └─ tests/          pytest (59 tests): conftest, test_redact, test_api, test_textedit, test_drive
+   └─ tests/          pytest (62 tests): conftest, test_redact, test_api, test_textedit, test_drive
 ```
 
 ## Commands (Windows; root folder)
@@ -279,6 +280,13 @@ sees their own Drive through the Google connection they made in energia-app
 (account menu → Connect Google). Not connected → 409 with that hint
 (`ENERGIA_PUBLIC_URL`). Lists folders, PDFs, JPG/PNG, Docs/Slides (arrive as
 PDF). energia-app's `GOOGLE_DRIVE_FOLDER_ID` decides the starting folder.
+Split → Save ▾ (2026-11-03): "To this computer…" uses the browser's Save-as
+window (`showSaveFilePicker`, Chrome/Edge) or a normal download (Brave/Firefox;
+Brave puts it in Downloads unless "Ask where to save each file" is on);
+several files → one ZIP. "To Google Drive…" opens DrivePicker in folder mode
+and uploads each output as its own PDF via `POST /api/drive/upload` →
+energia-app `/api/google-drive/upload` (multipart: file, folderId, filename).
+Merge/Organize/main Save still save locally only.
 Cloudflare Access: user declined (2026-11-03); sign-in stays energia-app only.
 
 Undo/redo keys accept Z/Y in either case (Caps Lock; Playwright's "Control+Z").

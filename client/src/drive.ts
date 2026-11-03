@@ -44,3 +44,20 @@ export async function downloadDriveFile(item: DriveItem): Promise<File> {
   if (type === "application/pdf" && !/\.pdf$/i.test(name)) name += ".pdf";
   return new File([blob], name, { type });
 }
+
+export type DriveFolderRef = { id: string; name: string };
+
+/** Upload one PDF into a Drive folder; returns its Drive name and link. */
+export async function uploadToDrive(
+  blob: Blob,
+  name: string,
+  folderId: string
+): Promise<{ name: string; webViewLink?: string | null }> {
+  const form = new FormData();
+  form.append("file", new Blob([blob], { type: "application/pdf" }), name);
+  form.append("name", name);
+  form.append("folderId", folderId);
+  const res = await fetch("/api/drive/upload", { method: "POST", body: form });
+  if (!res.ok) throw new Error(await errorMessage(res, `Could not save ${name} to Google Drive`));
+  return res.json();
+}

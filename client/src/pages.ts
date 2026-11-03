@@ -19,14 +19,14 @@ function dispositionName(res: Response, fallback: string): string {
 }
 
 /**
- * Build the outputs and download them: one PDF for a single output,
- * a ZIP with one PDF each for several. Returns the downloaded file name.
+ * Build the outputs: one PDF for a single output, a ZIP with one PDF each for
+ * several. Nothing is saved; the caller decides where it goes.
  */
-export async function downloadSplit(
+export async function splitPdf(
   pdfBytes: Uint8Array,
   sourceName: string,
   outputs: SplitOutput[]
-): Promise<string> {
+): Promise<{ blob: Blob; name: string }> {
   const form = new FormData();
   form.append(
     "file",
@@ -42,14 +42,7 @@ export async function downloadSplit(
   const res = await fetch("/api/split", { method: "POST", body: form });
   if (!res.ok) throw new Error(await errorMessage(res, "Split failed"));
   const blob = await res.blob();
-  const name = dispositionName(res, "split.zip");
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = name;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 10_000);
-  return name;
+  return { blob, name: dispositionName(res, "split.zip") };
 }
 
 /** "1, 3, 5–8" */

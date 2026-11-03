@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import type { PdfDocument } from "./pdf";
 import { PageThumb } from "./PageThumb";
-import { describePages, downloadSplit, type SplitOutput } from "./pages";
+import { describePages, splitPdf, type SplitOutput } from "./pages";
+import { saveToComputer } from "./saveLocal";
+import { uploadToDrive, type DriveFolderRef } from "./drive";
+import { DrivePicker } from "./DrivePicker";
+import { SaveChoice } from "./SaveChoice";
 import { ScissorsIcon } from "./ToolButton";
 
 type Props = {
@@ -42,6 +46,7 @@ export function SplitScreen({
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [driveOpen, setDriveOpen] = useState(false);
 
   const stem = fileName.replace(/\.pdf$/i, "");
 
@@ -70,11 +75,12 @@ export function SplitScreen({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (driveOpen) return;
       if (e.key === "Escape" && (e.target as HTMLElement).tagName !== "INPUT") onBack();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onBack]);
+  }, [onBack, driveOpen]);
 
   const toggle = <T,>(set: Set<T>, value: T) => {
     const next = new Set(set);
@@ -91,23 +97,45 @@ export function SplitScreen({
 
   const allSkipped = new Set(Array.from({ length: pageCount }, (_, i) => i + 1));
 
-  const handleDownload = async () => {
-    if (outputs.length === 0) return;
+  const run = async (work: () => Promise<string | null>) => {
     setBusy(true);
     setError(null);
     setStatus("Building files…");
     try {
-      const bytes = await buildBytes();
-      const name = await downloadSplit(bytes, fileName, outputs);
-      setStatus(
-        `Saved ${name}${outputs.length > 1 ? ` (${outputs.length} PDFs inside)` : ""}. The open file is unchanged.`
-      );
+      const done = await work();
+      setStatus(done);
     } catch (err) {
       setStatus(null);
       setError(err instanceof Error ? err.message : "Split failed.");
     } finally {
       setBusy(false);
     }
+  };
+
+  /** One PDF, or a ZIP of all of them, saved where the user picks. */
+  const saveToThisComputer = () =>
+    run(async () => {
+      const { blob, name } = await splitPdf(await buildBytes(), fileName, outputs);
+      setStatus("Choose where to save…");
+      const saved = await saveToComputer(blob, name);
+      if (!saved) return "Not saved.";
+      return `Saved ${saved}${outputs.length > 1 ? ` (${outputs.length} PDFs inside)` : ""}. The open file is unchanged.`;
+    });
+
+  /** Each output becomes its own PDF in the chosen Drive folder. */
+  const saveToDrive = (folder: DriveFolderRef) => {
+    setDriveOpen(false);
+    return run(async () => {
+      const bytes = await buildBytes();
+      const saved: string[] = [];
+      for (const [i, o] of outputs.entries()) {
+        setStatus(`Saving ${i + 1} of ${outputs.length} to Google Drive…`);
+        const { blob } = await splitPdf(bytes, fileName, [o]);
+        const res = await uploadToDrive(blob, `${o.name}.pdf`, folder.id);
+        saved.push(res.name);
+      }
+      return `Saved ${saved.length === 1 ? saved[0] : `${saved.length} PDFs`} to Google Drive › ${folder.name}. The open file is unchanged.`;
+    });
   };
 
   const summary =
@@ -163,14 +191,12 @@ export function SplitScreen({
         <span className="split-summary" title={summary}>
           {summary}
         </span>
-        <button
-          type="button"
-          className="btn btn-sm btn-primary"
-          onClick={handleDownload}
+        <SaveChoice
+          label={busy ? "Working…" : outputs.length > 1 ? `Save ${outputs.length} files` : "Save PDF"}
           disabled={busy || outputs.length === 0}
-        >
-          {busy ? "Working…" : outputs.length > 1 ? `Save ${outputs.length} files (ZIP)` : "Save PDF"}
-        </button>
+          onComputer={() => void saveToThisComputer()}
+          onDrive={() => setDriveOpen(true)}
+        />
       </div>
 
       <main
@@ -289,6 +315,18 @@ export function SplitScreen({
           ))}
         </div>
       </main>
+      {driveOpen && (
+        <DrivePicker
+          mode="folder"
+          saveNote={
+            outputs.length === 1
+              ? `${outputs[0].name}.pdf`
+              : `${outputs.length} PDFs: ${outputs.map((o) => `${o.name}.pdf`).join(", ")}`
+          }
+          onPickFolder={(f) => void saveToDrive(f)}
+          onClose={() => setDriveOpen(false)}
+        />
+      )}
     </>
   );
 }

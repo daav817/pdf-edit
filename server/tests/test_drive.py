@@ -148,3 +148,60 @@ def test_requires_sign_in(signed_in):
 
 def test_dev_mode_has_no_drive(client):
     assert client.get("/api/drive/files").status_code == 503
+
+
+class FakeEnergiaUpload(FakeEnergia):
+    uploads: list[bytes] = []
+
+    def do_POST(self):
+        FakeEnergia.seen.append((self.path, self.headers.get("Authorization", "")))
+        if self.path != "/api/google-drive/upload":
+            return self._json(404, {})
+        body = self.rfile.read(int(self.headers.get("Content-Length", 0)))
+        FakeEnergiaUpload.uploads.append(body)
+        if not self.headers.get("Content-Type", "").startswith("multipart/form-data; boundary="):
+            return self._json(400, {"error": "Use multipart/form-data with a file field."})
+        return self._json(200, {"id": "new12345", "name": "part1.pdf", "webViewLink": "https://drive.example/new12345"})
+
+
+@pytest.fixture
+def uploader(monkeypatch):
+    server = HTTPServer(("127.0.0.1", 0), FakeEnergiaUpload)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    FakeEnergia.seen = []
+    FakeEnergia.connected = True
+    FakeEnergiaUpload.uploads = []
+    monkeypatch.delenv("AUTH_DISABLED", raising=False)
+    monkeypatch.setenv("JWT_SECRET", SECRET)
+    monkeypatch.setenv("ENERGIA_APP_URL", f"http://127.0.0.1:{server.server_port}")
+    from app.main import app
+
+    token = jwt.encode({"sub": "u1", "org": "o1", "role": "staff", "exp": int(time.time()) + 600}, SECRET, algorithm="HS256")
+    c = TestClient(app)
+    c.cookies.set("pdfedit_session", token)
+    yield c, token
+    server.shutdown()
+
+
+def test_upload_pdf_to_folder(uploader):
+    c, token = uploader
+    res = c.post(
+        "/api/drive/upload",
+        files={"file": ("x.pdf", PDF, "application/pdf")},
+        data={"name": 'part "1"', "folderId": "folder123"},
+    )
+    assert res.status_code == 200
+    assert res.json() == {"id": "new12345", "name": "part1.pdf", "webViewLink": "https://drive.example/new12345"}
+    body = FakeEnergiaUpload.uploads[-1]
+    assert b'name="folderId"\r\n\r\nfolder123\r\n' in body
+    assert b'name="filename"\r\n\r\npart _1_.pdf\r\n' in body or b'part "1".pdf' in body
+    assert PDF in body
+    assert FakeEnergia.seen[-1] == ("/api/google-drive/upload", f"Bearer {token}")
+
+
+def test_upload_rejects_non_pdf_and_bad_folder(uploader):
+    c, _ = uploader
+    assert c.post("/api/drive/upload", files={"file": ("x.pdf", b"hello", "application/pdf")}).status_code == 400
+    res = c.post("/api/drive/upload", files={"file": ("x.pdf", PDF, "application/pdf")}, data={"folderId": "../x"})
+    assert res.status_code == 400
+    assert FakeEnergiaUpload.uploads == []
