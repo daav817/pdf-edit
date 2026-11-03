@@ -229,13 +229,63 @@ Phase 1 open:
 2. **Push image and deploy** to the home lab (waiting on user's go-ahead).
 3. Retire the old projects once staff confirm.
 
-Later / offered:
-- **Phase 2**: fill in existing PDF form fields (user wants it; may move up).
-- **Default PDF app on Windows**: add a web app manifest with `file_handlers` +
+## Roadmap (mirrors the plan doc; keep both in sync)
+
+**Phase 2 — widely used Acrobat functions**, in the plan's order of value:
+1. OCR: make scanned PDFs searchable and selectable (export already OCRs; this
+   adds an invisible text layer to the PDF itself)
+2. Fill and flatten existing PDF forms (the user has asked for this; may move up)
+3. Highlights, sticky notes and comments
+4. Compress (shrink images, drop unused data)
+5. Convert: PDF → images, images → PDF, PDF → Word (best effort)
+6. Watermarks, headers, page numbers and Bates numbers
+7. Password protection and permission settings
+
+Phase 1 and 2 stay on the home network and keep no files.
+
+**Phase 3 — e-signatures replacing SignWell.** Staff prepare and send in-house;
+customers sign through a public link. SignWell stays until all prerequisites
+are met.
+- Prerequisites before any real contract:
+  - Attorney reviews consent wording and the signing flow (E-SIGN Act, Ohio
+    UETA, PUCO enrollment rules).
+  - Database and file storage for envelopes and signed PDFs that survive a
+    node failure (replicated storage, not one disk).
+  - Off-site automatic backups of signed documents, tested by a restore.
+  - Outbound email via Gmail (energia-app already connects) or a delivery
+    service, with SPF/DKIM.
+  - Signing certificate: self-made vs. an Adobe-trusted one (paid, yearly).
+- Design:
+  - A **separate small service**, the only internet-facing part, through the
+    Cloudflare tunnel.
+  - MIT/BSD libraries only (pyHanko to seal, pypdf to stamp), **not PyMuPDF**.
+  - Envelope flow: upload, place fields, choose signers and order, send, sign,
+    seal, certificate of completion, store.
+  - Audit trail per event: who, when, IP, user agent, email verification,
+    document hash.
+  - Links: long random tokens, expiring, single signer, rate limited.
+  - A "Send for signature" button in energia-app's contract workflow calls
+    this service.
+
+**Other ideas offered to the user (not in the plan yet):**
+- Default PDF app on Windows: web app manifest with `file_handlers` +
   `launchQueue` in the viewer, install from Brave, set as default for `.pdf`.
-  Needs the app served from localhost or trusted HTTPS. Not started.
-- **Phase 3**: in-house e-signature replacing SignWell (customer-facing, no
-  PyMuPDF there).
+  Needs localhost or trusted HTTPS. Not started.
+
+**Risks to keep guarding** (from the plan):
+- Redaction or text removal that looks done but leaves data (metadata,
+  bookmarks, old object copies). Guard with tests that search the output.
+- Boxes landing wrong on rotated or cropped pages. Extend coordinate tests to
+  every drawing tool.
+- Edited text missing a letter in the original font. Fall back to a close
+  standard font and warn.
+- Home-lab outage. Battery backup; keep SignWell until Phase 3 is proven.
+
+**Open questions for the user** (from the plan):
+- Do staff need pdf-edit outside the office? If yes: Cloudflare tunnel plus
+  Cloudflare Access in front of the energia-app login.
+- Which hostname (e.g. `pdf.energia.local` or a subdomain of energiapower.llc)?
+- Largest PDF staff handle (pages, MB), to size memory limits?
 
 Known limits:
 - Edited text uses only Helvetica / Times / Courier (no original font, no bold).
