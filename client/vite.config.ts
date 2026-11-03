@@ -4,11 +4,18 @@ import { readFileSync } from "node:fs";
 
 // The GitHub build passes APP_VERSION (package version + run number);
 // local builds show the package version with "-dev".
-const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf-8"));
+function packageVersion(): string {
+  try {
+    const raw = readFileSync(new URL("../package.json", import.meta.url), "utf-8");
+    return (JSON.parse(raw) as { version?: string }).version ?? "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
+}
 const appVersion =
   process.env.APP_VERSION && process.env.APP_VERSION !== "dev"
     ? process.env.APP_VERSION
-    : `${pkg.version}-dev`;
+    : `${packageVersion()}-dev`;
 
 export default defineConfig({
   plugins: [react()],

@@ -5,6 +5,8 @@ ARG APP_VERSION=dev
 ENV APP_VERSION=$APP_VERSION
 WORKDIR /client
 COPY client/package.json client/package-lock.json ./
+# The version number is read from the root package.json (vite.config.ts).
+COPY package.json /package.json
 RUN npm ci --no-audit --no-fund
 COPY client/ ./
 RUN npm run build
