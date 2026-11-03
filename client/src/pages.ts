@@ -65,3 +65,51 @@ export function describePages(pages: number[]): string {
   }
   return out.join(", ");
 }
+
+/** Save a blob under a name through the browser's download. */
+export function downloadBlob(blob: Blob, name: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
+
+const pdfBlob = (bytes: Uint8Array) =>
+  new Blob([new Uint8Array(bytes)], { type: "application/pdf" });
+
+/** Join PDFs in the given order. */
+export async function mergePdfs(
+  inputs: { name: string; bytes: Uint8Array }[]
+): Promise<Blob> {
+  const form = new FormData();
+  for (const f of inputs) form.append("files", pdfBlob(f.bytes), f.name);
+  const res = await fetch("/api/merge", { method: "POST", body: form });
+  if (!res.ok) throw new Error(await errorMessage(res, "Merge failed"));
+  return res.blob();
+}
+
+export type OrganizePage = {
+  /** 1-based page in the source file. */
+  source: number;
+  /** Extra clockwise turn: 0, 90, 180 or 270. */
+  rotate: number;
+};
+
+/** New PDF from the source pages in this order, turned as given. */
+export async function organizePdf(
+  bytes: Uint8Array,
+  name: string,
+  pages: OrganizePage[]
+): Promise<Blob> {
+  const form = new FormData();
+  form.append("file", pdfBlob(bytes), name);
+  form.append(
+    "pages",
+    JSON.stringify(pages.map((p) => ({ source: p.source - 1, rotate: p.rotate })))
+  );
+  const res = await fetch("/api/organize", { method: "POST", body: form });
+  if (!res.ok) throw new Error(await errorMessage(res, "Organize failed"));
+  return res.blob();
+}

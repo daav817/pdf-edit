@@ -40,8 +40,9 @@ as they land.
 - Explain in plain language; the user reads results, not code. Lead with what
   changed and whether it works.
 - **Ask before anything outward-facing or hard to undo**: pushing images to
-  GHCR, `kubectl apply`, deleting files, git commits and pushes. Git: local
-  repo on `main` (since 2026-11-03), no remote yet; ask before adding one.
+  GHCR, `kubectl apply`, deleting files, git commits and pushes. Git: repo on
+  `main`, remote `origin` = https://github.com/daav817/pdf-edit.git (added
+  2026-11-03 at the user's request). Still ask before each commit/push.
 - The laptop is often **short on memory** (15.6 GB, frequently <2 GB free;
   Brave, Claude, Docker/WSL are the big users). Claude Code may kill
   background dev servers under memory pressure. If that happens, report it
@@ -50,9 +51,12 @@ as they land.
   `Get-CimInstance Win32_OperatingSystem` (FreePhysicalMemory).
 - UI preferences the user has stated:
   - Toolbar must never wrap or need scrolling (checked at 1366 and 1280 px wide).
-  - Tool buttons (Edit text, Copy region, Paste, Draw field, Redact) are
-    **icon-only with a tooltip showing the exact button name** (`ToolButton.tsx`).
-  - ☰ menu (top right) holds Import, Save as, Print, Sign out.
+  - Tool buttons (Edit text, Copy region, Paste, Draw field, Redact, then after
+    a divider Split pages, Merge files, Organize pages) are **icon-only with a
+    tooltip showing the exact button name** (`ToolButton.tsx`).
+  - ☰ menu (top right) holds Import, **every icon tool too** (Tools and Pages
+    groups, same actions), Save as, Print, Sign out. Any new icon button must
+    also get a menu entry (`menuTools` / `menuPageTools` in App.tsx).
   - **Every drawing tool switches off after one use**; the user clicks the
     button again for another. Copy region does not auto-arm Paste.
   - No big hint text inside boxes; hints go in the fixed context bar.
@@ -90,7 +94,10 @@ pdf-edit/
 │     ├─ ToolButton.tsx          icon buttons + portal tooltips + inline SVG icons
 │     ├─ SplitScreen.tsx         Split pages screen: one card per output file, skip pages, split lines
 │     ├─ PageThumb.tsx           lazy, one-at-a-time, cached page thumbnails
-│     ├─ pages.ts                split API call + page-list wording ("1, 3, 5–8")
+│     ├─ MergeScreen.tsx         Merge files: list (open file first), add/drop files, reorder, save or open
+│     ├─ OrganizeScreen.tsx      Organize pages: drag to reorder, turn, remove; Apply (undoable) or save
+│     ├─ StatusBanner.tsx        message banner used by the page screens
+│     ├─ pages.ts                split/merge/organize API calls + page-list wording ("1, 3, 5–8")
 │     ├─ MainMenu.tsx, CloseFileDialog.tsx, AuthGate.tsx
 │     ├─ types.ts                FormField, TextEdit, RedactRegion, helpers
 │     └─ viewer/viewer.ts,.css   preview viewer page
@@ -198,6 +205,8 @@ render()".
 
 ## Deploy (needs the user's explicit go-ahead)
 
+Source: https://github.com/daav817/pdf-edit (`origin`, branch `main`).
+
 Image: `ghcr.io/daav817/pdf-edit` (built and verified locally 2026-10-29 with
 pod-like settings: uid 10001, read-only root FS, tmpfs /tmp, 1 GiB limit;
 ~124 MiB at rest; image 818 MB).
@@ -227,6 +236,9 @@ Phase 1 done:
   close prompt, View edited file viewer, icon toolbar.
 - Docker image + k8s manifests, verified in a container.
 
+Page screens (`pageScreen` in App.tsx: split | merge | organize) replace the
+context bar and page view while open; the editor's key handler is off then.
+
 Split screen done (2026-11-03): scissors button in the tool group opens it.
 Pages sit in one card per output file; click the gap between pages to split
 (bold blue line between cards, "Remove split" joins), click a page to skip it
@@ -235,11 +247,21 @@ Saves the same bytes as Save (edits included; unapplied redaction marks not).
 One output → plain PDF, several → ZIP; the open file is not changed. App's
 editor key handler is off while it is open (Ctrl+Z must not undo behind it).
 
+Merge screen done (2026-11-03): also reachable from the start screen with no
+file open. Open file is item 1 (with its edits); add PDF/JPG/PNG by button or
+drop; drag or arrows to reorder; Save merged PDF or Open in editor (confirms
+if the open file has unsaved changes).
+
+Organize screen done (2026-11-03): drag tiles (or ‹ ›) to reorder, turn left/
+right, remove/restore, Turn all, Reset. Apply bakes edits in and replaces the
+open file as one undo step (blocked while redaction marks are unapplied);
+"Save as new PDF" downloads without changing the open file.
+
+Undo/redo keys accept Z/Y in either case (Caps Lock; Playwright's "Control+Z").
+
 Phase 1 open:
-1. **Merge / Organize screens** in the client (server endpoints exist). Organize
-   must bake in or block pending edits, since edits are stored by page number.
-2. **Push image and deploy** to the home lab (waiting on user's go-ahead).
-3. Retire the old projects once staff confirm.
+1. **Push image and deploy** to the home lab (waiting on user's go-ahead).
+2. Retire the old projects once staff confirm.
 
 ## Roadmap (mirrors the plan doc; keep both in sync)
 

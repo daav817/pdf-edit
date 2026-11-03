@@ -17,6 +17,9 @@ import {
   previewAnnotatedPdf,
 } from "./savePdf";
 import { SplitScreen } from "./SplitScreen";
+import { MergeScreen } from "./MergeScreen";
+import { OrganizeScreen } from "./OrganizeScreen";
+import type { MenuTool } from "./MainMenu";
 import {
   CopyRegionIcon,
   DrawFieldIcon,
@@ -24,6 +27,8 @@ import {
   PasteIcon,
   RedactIcon,
   ScissorsIcon,
+  MergeIcon,
+  OrganizeIcon,
   ToolButton,
 } from "./ToolButton";
 import { CloseFileDialog } from "./CloseFileDialog";
@@ -46,6 +51,15 @@ import type { RedactRegion } from "./types";
 
 /** Everything undo/redo covers, including the file itself so an applied
  * redaction can be undone until the user moves on. */
+/** Full-screen page tools that replace the editor while open. */
+type PageScreen = "split" | "merge" | "organize";
+
+const PAGE_SCREEN_TITLE: Record<PageScreen, string> = {
+  split: "Split pages",
+  merge: "Merge files",
+  organize: "Organize pages",
+};
+
 type AnnotationState = {
   file: File | null;
   fields: FormField[];
@@ -145,7 +159,7 @@ export default function App({ onSignOut }: Props) {
   const [redactPatterns, setRedactPatterns] = useState<RedactPattern[]>([]);
   const [chosenPatterns, setChosenPatterns] = useState<string[]>([]);
   const [redactBusy, setRedactBusy] = useState(false);
-  const [splitOpen, setSplitOpen] = useState(false);
+  const [pageScreen, setPageScreen] = useState<PageScreen | null>(null);
 
   const {
     state: annotations,
@@ -257,7 +271,7 @@ export default function App({ onSignOut }: Props) {
       setCopyTextMode(false);
       setPasteTextMode(false);
       setRedactMode(false);
-      setSplitOpen(false);
+      setPageScreen(null);
       setCopiedClip(null);
       setPage(1);
       setDefaultFieldCover(isImageImportFile(f));
@@ -301,15 +315,15 @@ export default function App({ onSignOut }: Props) {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       // The Split screen has its own keys; editor undo must not run behind it.
-      if (splitOpen) return;
+      if (pageScreen) return;
       const mod = e.ctrlKey || e.metaKey;
-      if (mod && e.key === "z" && !e.shiftKey) {
+      if (mod && e.key.toLowerCase() === "z" && !e.shiftKey) {
         e.preventDefault();
         undo();
         clearSelection();
         return;
       }
-      if (mod && (e.key === "y" || (e.key === "z" && e.shiftKey))) {
+      if (mod && (e.key.toLowerCase() === "y" || (e.key.toLowerCase() === "z" && e.shiftKey))) {
         e.preventDefault();
         redo();
         clearSelection();
@@ -370,7 +384,7 @@ export default function App({ onSignOut }: Props) {
     copyTextMode,
     pasteTextMode,
     redactMode,
-    splitOpen,
+    pageScreen,
   ]);
 
   const onFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -642,7 +656,37 @@ export default function App({ onSignOut }: Props) {
     setRedactMode(false);
   };
 
-  const closeSplit = useCallback(() => setSplitOpen(false), []);
+  const closePageScreen = useCallback(() => setPageScreen(null), []);
+
+  const openPageScreen = (screen: PageScreen) => {
+    handleToolUsed();
+    clearSelection();
+    setPageScreen(screen);
+  };
+
+  /** Organize → Apply: the new file replaces the old one as one undo step. */
+  const handleOrganized = (organized: File) => {
+    setAnnotations(() => ({ file: organized, fields: [], textEdits: [], redactions: [] }));
+    setPageScreen(null);
+    setPage(1);
+    setError(null);
+    setExportStatus(
+      "Pages organized. Your edits are now part of the pages. Undo (Ctrl+Z) brings back the old pages and edits."
+    );
+  };
+
+  const handleMergedOpen = (merged: File) => {
+    if (
+      docHasUnsaved &&
+      !window.confirm(
+        `Open the merged file in the editor? Unsaved changes to ${file?.name ?? "the open file"} are in the merged file, but the original is not saved.`
+      )
+    ) {
+      return;
+    }
+    void openFile(merged);
+    setExportStatus(`Opened ${merged.name}. Use ☰ → Save to keep it.`);
+  };
 
   const fieldCount = fields.length;
   const modifiedTextCount = textEdits.filter(isTextModified).length;
@@ -677,7 +721,7 @@ export default function App({ onSignOut }: Props) {
     replaceAnnotations(empty);
     setSavedState(empty);
     setCloseDialogOpen(false);
-    setSplitOpen(false);
+    setPageScreen(null);
     setPage(1);
     setPageReady(false);
     setDefaultFieldCover(false);
@@ -758,6 +802,33 @@ export default function App({ onSignOut }: Props) {
     updateFormatTarget({ fontSize, fontSizeLocked: false });
   };
 
+  /** Leave a page screen first, then switch the tool. */
+  const fromMenu = (toggle: () => void) => () => {
+    setPageScreen(null);
+    toggle();
+  };
+  const menuTools: MenuTool[] = [
+    { label: "Edit text", icon: <EditTextIcon />, on: editTextMode, disabled: !doc, onSelect: fromMenu(toggleEditTextMode) },
+    { label: "Copy region", icon: <CopyRegionIcon />, on: copyTextMode, disabled: !doc, onSelect: fromMenu(toggleCopyTextMode) },
+    {
+      label: copiedClip ? "Paste" : "Paste (copy a region first)",
+      icon: <PasteIcon />,
+      on: pasteTextMode,
+      disabled: !doc || !copiedClip,
+      onSelect: fromMenu(togglePasteTextMode),
+    },
+    { label: "Draw field", icon: <DrawFieldIcon />, on: drawMode, disabled: !doc, onSelect: fromMenu(toggleDrawMode) },
+    { label: "Redact", icon: <RedactIcon />, on: redactMode, disabled: !doc, onSelect: fromMenu(toggleRedactMode) },
+  ];
+  const menuPageTools: MenuTool[] = [
+    { label: "Split pages", icon: <ScissorsIcon />, on: pageScreen === "split", disabled: !doc, onSelect: () => openPageScreen("split") },
+    { label: "Merge files", icon: <MergeIcon />, on: pageScreen === "merge", onSelect: () => openPageScreen("merge") },
+    { label: "Organize pages", icon: <OrganizeIcon />, on: pageScreen === "organize", disabled: !doc, onSelect: () => openPageScreen("organize") },
+  ];
+  const hasEdits = fieldCount > 0 || modifiedTextCount > 0;
+  const buildCurrent = () =>
+    file ? buildAnnotatedPdf(file, fields, textEdits) : Promise.reject(new Error("No file is open."));
+
   return (
     <div className="app">
       <header className="toolbar">
@@ -770,13 +841,16 @@ export default function App({ onSignOut }: Props) {
           )}
         </div>
 
-        {doc && splitOpen && (
+        {pageScreen && (
           <div className="toolbar-center">
-            <span className="page-indicator">Split pages · {pageCount} page{pageCount !== 1 ? "s" : ""}</span>
+            <span className="page-indicator">
+              {PAGE_SCREEN_TITLE[pageScreen]}
+              {doc && pageScreen !== "merge" && ` · ${pageCount} page${pageCount !== 1 ? "s" : ""}`}
+            </span>
           </div>
         )}
 
-        {doc && !splitOpen && (
+        {doc && !pageScreen && (
           <div className="toolbar-center">
             <button
               type="button"
@@ -858,7 +932,7 @@ export default function App({ onSignOut }: Props) {
           </div>
         )}
 
-        {doc && !splitOpen && (
+        {doc && !pageScreen && (
           <div className="toolbar-form">
             <ToolButton
               label="Edit text"
@@ -896,15 +970,24 @@ export default function App({ onSignOut }: Props) {
               pressed={redactMode}
               onClick={toggleRedactMode}
             />
+            <span className="toolbar-group-divider" aria-hidden />
             <ToolButton
               label="Split pages"
               icon={<ScissorsIcon />}
               className="btn"
-              onClick={() => {
-                handleToolUsed();
-                clearSelection();
-                setSplitOpen(true);
-              }}
+              onClick={() => openPageScreen("split")}
+            />
+            <ToolButton
+              label="Merge files"
+              icon={<MergeIcon />}
+              className="btn"
+              onClick={() => openPageScreen("merge")}
+            />
+            <ToolButton
+              label="Organize pages"
+              icon={<OrganizeIcon />}
+              className="btn"
+              onClick={() => openPageScreen("organize")}
             />
           </div>
         )}
@@ -921,6 +1004,8 @@ export default function App({ onSignOut }: Props) {
             </button>
           )}
           <MainMenu
+            tools={menuTools}
+            pageTools={menuPageTools}
             hasFile={!!file}
             busy={exporting || printing}
             exporting={exporting}
@@ -935,16 +1020,38 @@ export default function App({ onSignOut }: Props) {
         </div>
       </header>
 
-      {doc && file && splitOpen ? (
+      {doc && file && pageScreen === "split" ? (
         <SplitScreen
           doc={doc}
           pageCount={pageCount}
           fileName={file.name}
-          buildBytes={() => buildAnnotatedPdf(file, fields, textEdits)}
-          hasEdits={fieldCount > 0 || modifiedTextCount > 0}
+          buildBytes={buildCurrent}
+          hasEdits={hasEdits}
           pendingRedactions={redactions.length}
-          onBack={closeSplit}
+          onBack={closePageScreen}
           onDropFile={(f) => void openFile(f)}
+        />
+      ) : doc && file && pageScreen === "organize" ? (
+        <OrganizeScreen
+          doc={doc}
+          pageCount={pageCount}
+          fileName={file.name}
+          buildBytes={buildCurrent}
+          hasEdits={hasEdits}
+          pendingRedactions={redactions.length}
+          onBack={closePageScreen}
+          onApply={handleOrganized}
+          onDropFile={(f) => void openFile(f)}
+        />
+      ) : pageScreen === "merge" ? (
+        <MergeScreen
+          currentFile={doc ? file : null}
+          currentDoc={doc}
+          buildCurrentBytes={buildCurrent}
+          hasEdits={hasEdits}
+          pendingRedactions={redactions.length}
+          onBack={closePageScreen}
+          onOpenResult={handleMergedOpen}
         />
       ) : (
       <>
@@ -1120,6 +1227,13 @@ export default function App({ onSignOut }: Props) {
                 onChange={onFileInput}
               />
             </label>
+            <button
+              type="button"
+              className="btn"
+              onClick={() => openPageScreen("merge")}
+            >
+              Merge several files…
+            </button>
             <p className="hint">
               JPG and PNG are converted to a one-page PDF automatically. Use{" "}
               <strong>Redact</strong> to permanently remove content, or{" "}

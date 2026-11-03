@@ -136,3 +136,27 @@ export const ScissorsIcon = () =>
       <path d="M8.1 8.1 12 12" />
     </>
   );
+
+/** Two pages joining into one: merge files. */
+export const MergeIcon = () =>
+  svg(
+    <>
+      <rect x="3" y="3" width="7" height="9" rx="1" />
+      <rect x="14" y="3" width="7" height="9" rx="1" />
+      <path d="M6.5 12v2.5a2 2 0 0 0 2 2H12m5.5-4.5v2.5a2 2 0 0 1-2 2H12" />
+      <path d="M12 16.5V21" />
+      <path d="m9.5 18.5 2.5 2.5 2.5-2.5" />
+    </>
+  );
+
+/** A grid of pages with a turn arrow: reorder, rotate, remove. */
+export const OrganizeIcon = () =>
+  svg(
+    <>
+      <rect x="3" y="3" width="7" height="7" rx="1" />
+      <rect x="14" y="3" width="7" height="7" rx="1" />
+      <rect x="3" y="14" width="7" height="7" rx="1" />
+      <path d="M14 17.5a3.5 3.5 0 1 0 3.5-3.5" />
+      <path d="m15.5 12 2 2-2 2" />
+    </>
+  );

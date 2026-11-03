@@ -1,7 +1,21 @@
-import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from "react";
 import { EXPORT_FORMATS, type ExportFormat } from "./export";
 
+/** A tool shown in the menu as well as on the toolbar. */
+export type MenuTool = {
+  label: string;
+  icon: ReactNode;
+  /** The tool is switched on / the screen is open. */
+  on?: boolean;
+  disabled?: boolean;
+  onSelect: () => void;
+};
+
 type Props = {
+  /** Editing tools (same as the toolbar icons). */
+  tools: MenuTool[];
+  /** Split / merge / organize. */
+  pageTools: MenuTool[];
   hasFile: boolean;
   busy: boolean;
   exporting: boolean;
@@ -16,6 +30,8 @@ type Props = {
 
 /** The ☰ menu in the top right: import, save as, print, sign out. */
 export function MainMenu({
+  tools,
+  pageTools,
   hasFile,
   busy,
   exporting,
@@ -79,6 +95,35 @@ export function MainMenu({
               }}
             />
           </label>
+
+          {[
+            { title: "Tools", items: tools },
+            { title: "Pages", items: pageTools },
+          ].map(
+            (group) =>
+              group.items.length > 0 && (
+                <div key={group.title} className="main-menu-group" role="group" aria-label={group.title}>
+                  <span className="main-menu-label">{group.title}</span>
+                  {group.items.map((t) => (
+                    <button
+                      key={t.label}
+                      type="button"
+                      role="menuitem"
+                      className={`main-menu-item with-icon${t.on ? " is-on" : ""}`}
+                      aria-pressed={t.on}
+                      disabled={t.disabled}
+                      onClick={() => {
+                        setOpen(false);
+                        t.onSelect();
+                      }}
+                    >
+                      {t.icon}
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+              )
+          )}
 
           <div className="main-menu-section">
             <span className="main-menu-label">Save as</span>
