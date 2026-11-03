@@ -108,8 +108,10 @@ async def drive_upload(
     name: str = Form(""),
     folderId: str = Form(""),
 ):
-    data = await read_pdf(file)
-    return drive.upload_pdf(_drive_token(request), data, name or file.filename or "document.pdf", folderId.strip())
+    data = await file.read(MAX_UPLOAD_BYTES + 1)
+    if len(data) > MAX_UPLOAD_BYTES:
+        raise HTTPException(413, f"File is larger than {MAX_UPLOAD_BYTES // (1024 * 1024)} MB.")
+    return drive.upload_file(_drive_token(request), data, name or file.filename or "document.pdf", folderId.strip())
 
 
 @app.get("/api/drive/files/{file_id}/download")
@@ -205,10 +207,14 @@ async def organize(_user: User, file: UploadFile = File(...), pages_json: str = 
 async def export_text(_user: User, file: UploadFile = File(...), format: str = Form("txt")):
     data = await read_pdf(file)
     result = export.export(data, format)
+    # Named after the file staff opened (like every other save); the PDF's own
+    # title is only a fallback.
+    stem = Path(file.filename or "").stem.strip()
+    name = f"{stem}{Path(result.filename).suffix}" if stem else result.filename
     return download(
         result.body,
         result.mime_type,
-        result.filename,
+        name,
         {"X-Extraction-Method": result.method},
     )
 

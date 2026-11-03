@@ -229,6 +229,16 @@ export async function previewAnnotatedPdf(
   win.location.href = new URL(`/viewer.html#${params}`, window.location.origin).href;
 }
 
+/** "<name>-edited.pdf" when there are changes, else the original name. */
+export function annotatedPdfName(
+  file: File,
+  fields: FormField[],
+  textEdits: TextEdit[] = []
+): string {
+  const baseName = file.name.replace(/\.pdf$/i, "");
+  return hasUnsavedChanges(fields, textEdits) ? `${baseName}-edited.pdf` : `${baseName}.pdf`;
+}
+
 export async function downloadAnnotatedPdf(
   file: File,
   fields: FormField[],

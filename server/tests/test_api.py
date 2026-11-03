@@ -203,3 +203,10 @@ def test_cache_rules():
     assert cache_control_for("viewer.html") == PAGE_CACHE
     assert cache_control_for("assets/main-abc123.js") == ASSET_CACHE
     assert "immutable" in ASSET_CACHE
+
+
+def test_export_named_after_the_file(client):
+    pdf = make_pdf([((72, 72), "Quarterly usage report")])
+    res = client.post("/api/export", files=pdf_file(pdf, "Acme bill.pdf"), data={"format": "txt"})
+    assert res.status_code == 200
+    assert "Acme%20bill.txt" in res.headers["content-disposition"]

@@ -118,7 +118,7 @@ pdf-edit/
    │  ├─ textedit.py  remove original words under edited text
    │  ├─ pages.py     split (zip), merge, organize
    │  └─ export.py    txt/docx/html/md/json/rtf with Tesseract OCR fallback
-   └─ tests/          pytest (62 tests): conftest, test_redact, test_api, test_textedit, test_drive
+   └─ tests/          pytest (65 tests): conftest, test_redact, test_api, test_textedit, test_drive
 ```
 
 ## Commands (Windows; root folder)
@@ -286,8 +286,12 @@ Brave puts it in Downloads unless "Ask where to save each file" is on);
 several files → one ZIP. "To Google Drive…" opens DrivePicker in folder mode
 and uploads each output as its own PDF via `POST /api/drive/upload` →
 energia-app `/api/google-drive/upload` (multipart: file, folderId, filename).
-Merge (Save merged PDF) and Organize (Save as new PDF) use the same Save ▾;
-the main ☰ Save still saves locally only.
+Merge (Save merged PDF) and Organize (Save as new PDF) use the same Save ▾.
+☰ → Save as: format list plus "To this computer…" / "To Google Drive…" for
+every format (PDF, page PNG/JPEG, txt/docx/html/md/json/rtf). Drive upload
+(`drive.upload_file`) accepts only those extensions and checks PDF/PNG/JPEG/
+DOCX file signatures. Exports are named after the opened file, not the PDF
+title. "Save and close" in the close prompt still downloads locally.
 Cloudflare Access: user declined (2026-11-03); sign-in stays energia-app only.
 
 Undo/redo keys accept Z/Y in either case (Caps Lock; Playwright's "Control+Z").

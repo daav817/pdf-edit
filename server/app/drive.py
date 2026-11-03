@@ -147,14 +147,36 @@ def download(token: str, file_id: str, max_bytes: int) -> tuple[bytes, str, str]
     return data, content_type.split(";")[0].strip(), name
 
 
+# What ☰ → Save can produce, and what it is uploaded as. Nothing else is accepted.
+UPLOAD_TYPES = {
+    ".pdf": "application/pdf",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".txt": "text/plain",
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ".html": "text/html",
+    ".md": "text/markdown",
+    ".json": "application/json",
+    ".rtf": "application/rtf",
+}
+
+# Files whose start is known: the content must match the name.
+MAGIC = {
+    ".pdf": (b"%PDF",),
+    ".png": (b"\x89PNG\r\n\x1a\n",),
+    ".jpg": (b"\xff\xd8\xff",),
+    ".jpeg": (b"\xff\xd8\xff",),
+    ".docx": (b"PK\x03\x04",),
+}
+
+
 def _safe_name(name: str) -> str:
     name = re.sub(r'[/\\?%*:|"<>\x00-\x1f]', "_", name).strip(". ") or "document"
-    if not name.lower().endswith(".pdf"):
-        name += ".pdf"
     return name[:200]
 
 
-def _multipart(fields: dict[str, str], file_field: str, filename: str, data: bytes) -> tuple[bytes, str]:
+def _multipart(fields: dict[str, str], filename: str, mime: str, data: bytes) -> tuple[bytes, str]:
     boundary = "pdfedit" + os.urandom(12).hex()
     out = bytearray()
     for key, value in fields.items():
@@ -162,22 +184,32 @@ def _multipart(fields: dict[str, str], file_field: str, filename: str, data: byt
         out += value.encode("utf-8") + b"\r\n"
     safe = filename.replace('"', "_")
     out += (
-        f'--{boundary}\r\nContent-Disposition: form-data; name="{file_field}"; filename="{safe}"\r\n'
-        "Content-Type: application/pdf\r\n\r\n"
+        f'--{boundary}\r\nContent-Disposition: form-data; name="file"; filename="{safe}"\r\n'
+        f"Content-Type: {mime}\r\n\r\n"
     ).encode("utf-8")
     out += data + b"\r\n" + f"--{boundary}--\r\n".encode()
     return bytes(out), f"multipart/form-data; boundary={boundary}"
 
 
-def upload_pdf(token: str, data: bytes, name: str, folder_id: str) -> dict:
-    """Put a PDF into a Drive folder (as the signed-in user). Returns id, name, link."""
-    if not data.startswith(b"%PDF"):
-        raise HTTPException(400, "Only PDFs can be saved to Google Drive here.")
+def upload_file(token: str, data: bytes, name: str, folder_id: str) -> dict:
+    """Put a saved file (PDF, image or export) into a Drive folder as the signed-in
+    user. Returns id, name, link."""
     if folder_id and not re.fullmatch(r"[A-Za-z0-9_-]{1,200}", folder_id):
         raise HTTPException(400, "Invalid Drive folder id.")
+    if not data:
+        raise HTTPException(400, "The file is empty.")
     name = _safe_name(name)
+    ext = os.path.splitext(name)[1].lower()
+    if ext not in UPLOAD_TYPES:
+        if data.startswith(b"%PDF"):
+            name, ext = name + ".pdf", ".pdf"
+        else:
+            raise HTTPException(415, f"{name} can't be saved to Google Drive from here.")
+    magic = MAGIC.get(ext)
+    if magic and not data.startswith(magic):
+        raise HTTPException(400, f"{name} is not a valid {ext[1:].upper()} file.")
     body, content_type = _multipart(
-        {"folderId": folder_id or "root", "filename": name}, "file", name, data
+        {"folderId": folder_id or "root", "filename": name}, name, UPLOAD_TYPES[ext], data
     )
     with _call(token, "/api/google-drive/upload", timeout=120, data=body, content_type=content_type) as res:
         reply = json.load(res)

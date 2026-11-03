@@ -194,9 +194,36 @@ def test_upload_pdf_to_folder(uploader):
     assert res.json() == {"id": "new12345", "name": "part1.pdf", "webViewLink": "https://drive.example/new12345"}
     body = FakeEnergiaUpload.uploads[-1]
     assert b'name="folderId"\r\n\r\nfolder123\r\n' in body
-    assert b'name="filename"\r\n\r\npart _1_.pdf\r\n' in body or b'part "1".pdf' in body
+    assert b'name="filename"\r\n\r\npart _1_.pdf\r\n' in body
+    assert b"Content-Type: application/pdf" in body
     assert PDF in body
     assert FakeEnergia.seen[-1] == ("/api/google-drive/upload", f"Bearer {token}")
+
+
+def test_upload_other_save_formats(uploader):
+    c, _ = uploader
+    docx = b"application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    for name, data, mime in [
+        ("notes.txt", b"plain words", b"text/plain"),
+        ("page-1.png", b"\x89PNG\r\n\x1a\n....", b"image/png"),
+        ("letter.docx", b"PK\x03\x04....", docx),
+    ]:
+        res = c.post(
+            "/api/drive/upload",
+            files={"file": (name, data, "application/octet-stream")},
+            data={"name": name},
+        )
+        assert res.status_code == 200, (name, res.text)
+        assert b"Content-Type: " + mime in FakeEnergiaUpload.uploads[-1]
+
+
+def test_upload_rejects_other_types_and_mismatched_content(uploader):
+    c, _ = uploader
+    exe = c.post("/api/drive/upload", files={"file": ("x.exe", b"MZ....", "application/octet-stream")}, data={"name": "x.exe"})
+    assert exe.status_code == 415
+    fake_png = c.post("/api/drive/upload", files={"file": ("x.png", b"not a png", "image/png")}, data={"name": "x.png"})
+    assert fake_png.status_code == 400
+    assert FakeEnergiaUpload.uploads == []
 
 
 def test_upload_rejects_non_pdf_and_bad_folder(uploader):

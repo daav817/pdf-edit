@@ -47,14 +47,14 @@ export async function downloadDriveFile(item: DriveItem): Promise<File> {
 
 export type DriveFolderRef = { id: string; name: string };
 
-/** Upload one PDF into a Drive folder; returns its Drive name and link. */
+/** Upload one file (PDF, image or export) into a Drive folder; returns its Drive name and link. */
 export async function uploadToDrive(
   blob: Blob,
   name: string,
   folderId: string
 ): Promise<{ name: string; webViewLink?: string | null }> {
   const form = new FormData();
-  form.append("file", new Blob([blob], { type: "application/pdf" }), name);
+  form.append("file", blob.type ? blob : new Blob([blob], { type: "application/pdf" }), name);
   form.append("name", name);
   form.append("folderId", folderId);
   const res = await fetch("/api/drive/upload", { method: "POST", body: form });

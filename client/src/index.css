@@ -1256,3 +1256,14 @@ body {
 .context-bar:has(.save-choice-menu) {
   overflow: visible;
 }
+
+.main-menu-save-row {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.main-menu-save-row .btn {
+  flex: 1;
+  justify-content: center;
+  white-space: nowrap;
+}

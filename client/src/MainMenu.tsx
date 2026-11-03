@@ -25,6 +25,7 @@ type Props = {
   onImport: (e: ChangeEvent<HTMLInputElement>) => void;
   onImportDrive: () => void;
   onSave: () => void;
+  onSaveDrive: () => void;
   onPrint: () => void;
   onSignOut?: () => void;
 };
@@ -42,6 +43,7 @@ export function MainMenu({
   onImport,
   onImportDrive,
   onSave,
+  onSaveDrive,
   onPrint,
   onSignOut,
 }: Props) {
@@ -153,17 +155,32 @@ export function MainMenu({
                 </option>
               ))}
             </select>
-            <button
-              type="button"
-              className="btn btn-accent"
-              onClick={() => {
-                setOpen(false);
-                onSave();
-              }}
-              disabled={!hasFile || busy}
-            >
-              {exporting ? "Saving…" : "Save"}
-            </button>
+            <div className="main-menu-save-row">
+              <button
+                type="button"
+                className="btn btn-accent"
+                onClick={() => {
+                  setOpen(false);
+                  onSave();
+                }}
+                disabled={!hasFile || busy}
+                title="Save to this computer"
+              >
+                {exporting ? "Saving…" : "To this computer…"}
+              </button>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => {
+                  setOpen(false);
+                  onSaveDrive();
+                }}
+                disabled={!hasFile || busy}
+                title="Save into a Google Drive folder"
+              >
+                To Google Drive…
+              </button>
+            </div>
           </div>
 
           <button

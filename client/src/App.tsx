@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { PdfViewer } from "./PdfViewer";
-import { downloadExport, type ExportFormat } from "./export";
+import { buildExport, EXPORT_FORMATS, type ExportFormat } from "./export";
 import { MainMenu } from "./MainMenu";
 import { printAnnotatedPdf } from "./print";
 import type { PdfDocument } from "./pdf";
@@ -10,8 +10,11 @@ import {
   isPdfImportFile,
   pdfFileFromImage,
 } from "./imageToPdf";
-import { downloadAnnotatedPageImage } from "./exportImage";
+import { buildAnnotatedPageImage } from "./exportImage";
+import { saveToComputer } from "./saveLocal";
+import { uploadToDrive, type DriveFolderRef } from "./drive";
 import {
+  annotatedPdfName,
   buildAnnotatedPdf,
   downloadAnnotatedPdf,
   previewAnnotatedPdf,
@@ -162,6 +165,7 @@ export default function App({ onSignOut }: Props) {
   const [redactBusy, setRedactBusy] = useState(false);
   const [pageScreen, setPageScreen] = useState<PageScreen | null>(null);
   const [drivePickerOpen, setDrivePickerOpen] = useState(false);
+  const [saveDriveOpen, setSaveDriveOpen] = useState(false);
 
   const {
     state: annotations,
@@ -317,7 +321,7 @@ export default function App({ onSignOut }: Props) {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       // The Split screen has its own keys; editor undo must not run behind it.
-      if (pageScreen) return;
+      if (pageScreen || drivePickerOpen || saveDriveOpen) return;
       const mod = e.ctrlKey || e.metaKey;
       if (mod && e.key.toLowerCase() === "z" && !e.shiftKey) {
         e.preventDefault();
@@ -387,6 +391,8 @@ export default function App({ onSignOut }: Props) {
     pasteTextMode,
     redactMode,
     pageScreen,
+    drivePickerOpen,
+    saveDriveOpen,
   ]);
 
   const onFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -402,36 +408,29 @@ export default function App({ onSignOut }: Props) {
     if (f) openFile(f);
   };
 
-  const handleExport = async () => {
+  /**
+   * ☰ → Save in the chosen format, to this computer (Save-as window or download)
+   * or into a Google Drive folder.
+   */
+  const handleExport = async (driveFolder?: DriveFolderRef) => {
     if (!file) return;
     setExporting(true);
     setError(null);
+    const savedNow = annotations;
+    try {
+      let blob: Blob;
+      let filename: string;
+      let note: string | null = null;
 
-    if (exportFormat === "pdf") {
-      setExportStatus("Building PDF with your changes…");
-      try {
-        const savedNow = annotations;
-        const filename = await downloadAnnotatedPdf(file, fields, textEdits);
-        setSavedState(savedNow);
-        setExportStatus(`Saved ${filename}.`);
-      } catch (err) {
-        setExportStatus(null);
-        setError(err instanceof Error ? err.message : "Export failed.");
-      } finally {
-        setExporting(false);
-      }
-      return;
-    }
-
-    if (exportFormat === "png" || exportFormat === "jpeg") {
-      if (!doc) return;
-      setExportStatus(
-        exportFormat === "jpeg"
-          ? "Rendering current page as JPEG…"
-          : "Rendering current page as PNG…"
-      );
-      try {
-        const filename = await downloadAnnotatedPageImage(
+      if (exportFormat === "pdf") {
+        setExportStatus("Building PDF with your changes…");
+        const bytes = await buildAnnotatedPdf(file, fields, textEdits);
+        blob = new Blob([new Uint8Array(bytes)], { type: "application/pdf" });
+        filename = annotatedPdfName(file, fields, textEdits);
+      } else if (exportFormat === "png" || exportFormat === "jpeg") {
+        if (!doc) return;
+        setExportStatus(`Rendering current page as ${exportFormat === "jpeg" ? "JPEG" : "PNG"}…`);
+        ({ blob, filename } = await buildAnnotatedPageImage(
           doc,
           page,
           scale,
@@ -439,37 +438,41 @@ export default function App({ onSignOut }: Props) {
           textEdits,
           exportFormat,
           file.name
-        );
-        setExportStatus(`Saved ${filename} (page ${page} at current zoom).`);
-      } catch (err) {
-        setExportStatus(null);
-        setError(err instanceof Error ? err.message : "Export failed.");
-      } finally {
-        setExporting(false);
+        ));
+        note = `(page ${page} at current zoom)`;
+      } else {
+        setExportStatus("Extracting text… scanned PDFs use OCR and may take a minute per page.");
+        const result = await buildExport(file, exportFormat);
+        ({ blob, filename } = result);
+        note =
+          result.extractionMethod === "ocr" || result.extractionMethod === "text-layer+ocr"
+            ? "Text recognized from page images (OCR)."
+            : result.extractionMethod === "text-layer"
+              ? "Text read from the PDF."
+              : null;
       }
-      return;
-    }
 
-    setExportStatus(
-      "Extracting text… scanned PDFs use OCR and may take a minute per page."
-    );
-    try {
-      const { filename, extractionMethod } = await downloadExport(
-        file,
-        exportFormat
-      );
-      const methodNote =
-        extractionMethod === "ocr" || extractionMethod === "text-layer+ocr"
-          ? "Text recognized from page images (OCR)."
-          : extractionMethod === "text-layer"
-            ? "Text read from the PDF."
-            : null;
-      setExportStatus(
-        methodNote ? `Saved ${filename}. ${methodNote}` : `Saved ${filename}.`
-      );
+      let where: string;
+      if (driveFolder) {
+        setExportStatus(`Saving ${filename} to Google Drive…`);
+        const res = await uploadToDrive(blob, filename, driveFolder.id);
+        filename = res.name;
+        where = ` to Google Drive › ${driveFolder.name}`;
+      } else {
+        setExportStatus("Choose where to save…");
+        const saved = await saveToComputer(blob, filename);
+        if (!saved) {
+          setExportStatus("Not saved.");
+          return;
+        }
+        filename = saved;
+        where = "";
+      }
+      if (exportFormat === "pdf") setSavedState(savedNow);
+      setExportStatus(`Saved ${filename}${where}.${note ? ` ${note}` : ""}`);
     } catch (err) {
       setExportStatus(null);
-      setError(err instanceof Error ? err.message : "Export failed.");
+      setError(err instanceof Error ? err.message : "Save failed.");
     } finally {
       setExporting(false);
     }
@@ -1016,7 +1019,8 @@ export default function App({ onSignOut }: Props) {
             onExportFormatChange={setExportFormat}
             onImport={onFileInput}
             onImportDrive={() => setDrivePickerOpen(true)}
-            onSave={handleExport}
+            onSave={() => void handleExport()}
+            onSaveDrive={() => setSaveDriveOpen(true)}
             onPrint={handlePrint}
             onSignOut={onSignOut}
           />
@@ -1284,6 +1288,22 @@ export default function App({ onSignOut }: Props) {
         )}
       </main>
       </>
+      )}
+
+      {saveDriveOpen && file && (
+        <DrivePicker
+          mode="folder"
+          saveNote={
+            exportFormat === "pdf"
+              ? annotatedPdfName(file, fields, textEdits)
+              : EXPORT_FORMATS.find((f) => f.id === exportFormat)?.label
+          }
+          onClose={() => setSaveDriveOpen(false)}
+          onPickFolder={(folder) => {
+            setSaveDriveOpen(false);
+            void handleExport(folder);
+          }}
+        />
       )}
 
       {drivePickerOpen && (

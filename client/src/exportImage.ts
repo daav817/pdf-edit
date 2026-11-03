@@ -5,7 +5,8 @@ import type { FormField, TextEdit } from "./types";
 
 export type RasterImageFormat = "png" | "jpeg";
 
-export async function downloadAnnotatedPageImage(
+/** The current page with its edits as a PNG/JPEG. Not saved yet. */
+export async function buildAnnotatedPageImage(
   doc: PdfDocument,
   pageNum: number,
   scale: number,
@@ -13,7 +14,7 @@ export async function downloadAnnotatedPageImage(
   textEdits: TextEdit[],
   format: RasterImageFormat,
   sourceFileName: string
-): Promise<string> {
+): Promise<{ blob: Blob; filename: string }> {
   const canvas = document.createElement("canvas");
   const info = await renderPageToCanvas(doc, pageNum, canvas, scale);
   if (!info) {
@@ -51,12 +52,5 @@ export async function downloadAnnotatedPageImage(
     );
   });
 
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
-
-  return filename;
+  return { blob, filename };
 }

@@ -13,11 +13,13 @@ export const EXPORT_FORMATS = [
 export type ExportFormat = (typeof EXPORT_FORMATS)[number]["id"];
 
 export type ExportResult = {
+  blob: Blob;
   filename: string;
   extractionMethod: string | null;
 };
 
-export async function downloadExport(
+/** Text, Word, HTML, … from the server (OCR when pages are scans). Not saved yet. */
+export async function buildExport(
   file: File,
   format: ExportFormat
 ): Promise<ExportResult> {
@@ -40,14 +42,8 @@ export async function downloadExport(
     ? decodeURIComponent(match[1].trim())
     : `${file.name.replace(/\.pdf$/i, "")}.${format}`;
 
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
-
   return {
+    blob,
     filename,
     extractionMethod: res.headers.get("X-Extraction-Method"),
   };
