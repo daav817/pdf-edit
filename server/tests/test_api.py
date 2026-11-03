@@ -194,3 +194,12 @@ def test_rejected_tokens(secured, bad):
 def test_must_change_password_blocked(secured):
     res = secured.get("/api/auth/me", headers={"Authorization": f"Bearer {token(must_change_password=True)}"})
     assert res.status_code == 403
+
+
+def test_cache_rules():
+    from app.main import ASSET_CACHE, PAGE_CACHE, cache_control_for
+
+    assert cache_control_for("index.html") == PAGE_CACHE == "no-cache"
+    assert cache_control_for("viewer.html") == PAGE_CACHE
+    assert cache_control_for("assets/main-abc123.js") == ASSET_CACHE
+    assert "immutable" in ASSET_CACHE

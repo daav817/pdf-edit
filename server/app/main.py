@@ -203,12 +203,31 @@ async def export_text(_user: User, file: UploadFile = File(...), format: str = F
 
 # --- screen -----------------------------------------------------------------
 
+# Pages (index.html, viewer.html) are always re-checked, so a new version shows
+# on the next normal reload. Files under /assets have the build hash in their
+# names, so browsers may keep them for good.
+PAGE_CACHE = "no-cache"
+ASSET_CACHE = "public, max-age=31536000, immutable"
+
+
+def cache_control_for(path: str) -> str:
+    return ASSET_CACHE if path.startswith("assets/") else PAGE_CACHE
+
+
+class AssetFiles(StaticFiles):
+    async def get_response(self, path, scope):
+        response = await super().get_response(path, scope)
+        if response.status_code == 200:
+            response.headers["Cache-Control"] = ASSET_CACHE
+        return response
+
+
 if STATIC_DIR.is_dir():
-    app.mount("/assets", StaticFiles(directory=STATIC_DIR / "assets"), name="assets")
+    app.mount("/assets", AssetFiles(directory=STATIC_DIR / "assets"), name="assets")
 
     @app.get("/{path:path}", include_in_schema=False)
     def spa(path: str):
         target = (STATIC_DIR / path).resolve()
         if path and target.is_file() and STATIC_DIR.resolve() in target.parents:
-            return FileResponse(target)
-        return FileResponse(STATIC_DIR / "index.html")
+            return FileResponse(target, headers={"Cache-Control": cache_control_for(path)})
+        return FileResponse(STATIC_DIR / "index.html", headers={"Cache-Control": PAGE_CACHE})
