@@ -40,8 +40,8 @@ as they land.
 - Explain in plain language; the user reads results, not code. Lead with what
   changed and whether it works.
 - **Ask before anything outward-facing or hard to undo**: pushing images to
-  GHCR, `kubectl apply`, deleting files, git commits/pushes (not a git repo
-  yet — ask before `git init` too).
+  GHCR, `kubectl apply`, deleting files, git commits and pushes. Git: local
+  repo on `main` (since 2026-11-03), no remote yet; ask before adding one.
 - The laptop is often **short on memory** (15.6 GB, frequently <2 GB free;
   Brave, Claude, Docker/WSL are the big users). Claude Code may kill
   background dev servers under memory pressure. If that happens, report it
