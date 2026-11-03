@@ -15,9 +15,10 @@ spec:
     path: k8s
   destination:
     server: https://kubernetes.default.svc
-    # Same namespace as energia-app: uses its ghcr-pull-secret and energia-secrets.
-    namespace: default
+    namespace: pdf-edit
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

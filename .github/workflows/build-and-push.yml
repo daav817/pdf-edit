@@ -57,6 +57,8 @@ jobs:
           tags: |
             ghcr.io/daav817/pdf-edit:latest
             ghcr.io/daav817/pdf-edit:${{ steps.version.outputs.TAG }}
+          build-args: |
+            APP_VERSION=${{ steps.version.outputs.TAG }}
 
       - name: Pin new image tag in k8s manifests
         run: |

@@ -72,7 +72,7 @@ class LoginBody(BaseModel):
 
 @app.get("/api/health")
 def health():
-    return {"ok": True}
+    return {"ok": True, "version": os.environ.get("APP_VERSION", "dev")}
 
 
 @app.post("/api/auth/login")

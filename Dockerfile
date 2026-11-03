@@ -1,5 +1,8 @@
 # --- build the React screen ---------------------------------------------------
 FROM node:22-alpine AS client
+# Set by the GitHub build (e.g. 0.1.0.7); shown in the ☰ menu and /api/health.
+ARG APP_VERSION=dev
+ENV APP_VERSION=$APP_VERSION
 WORKDIR /client
 COPY client/package.json client/package-lock.json ./
 RUN npm ci --no-audit --no-fund
@@ -8,7 +11,9 @@ RUN npm run build
 
 # --- runtime: FastAPI + PyMuPDF, serving the built screen ----------------------
 FROM python:3.13-slim
-ENV PYTHONDONTWRITEBYTECODE=1 \
+ARG APP_VERSION=dev
+ENV APP_VERSION=$APP_VERSION \
+    PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     STATIC_DIR=/app/static
 # Tesseract lets export read scanned pages (OCR).

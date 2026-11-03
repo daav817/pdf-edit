@@ -15,7 +15,8 @@ def pdf_file(data: bytes, name="doc.pdf"):
 
 
 def test_health(client):
-    assert client.get("/api/health").json() == {"ok": True}
+    body = client.get("/api/health").json()
+    assert body["ok"] is True and body["version"]
 
 
 def test_redact_endpoint(client):

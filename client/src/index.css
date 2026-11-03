@@ -1019,3 +1019,10 @@ body {
   margin: 0 0.2rem;
   flex-shrink: 0;
 }
+
+.main-menu-version {
+  padding: 0.5rem 0.75rem 0.2rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.75rem;
+  color: var(--muted);
+}

@@ -179,6 +179,9 @@ export function MainMenu({
               Sign out
             </button>
           )}
+          <div className="main-menu-version" title="pdf-edit version">
+            Version {__APP_VERSION__}
+          </div>
         </div>
       )}
     </div>
