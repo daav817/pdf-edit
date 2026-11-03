@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import type { PdfDocument } from "./pdf";
 import { PageThumb } from "./PageThumb";
-import { downloadBlob, organizePdf, type OrganizePage } from "./pages";
+import { organizePdf, type OrganizePage } from "./pages";
+import { saveToComputer } from "./saveLocal";
+import { uploadToDrive, type DriveFolderRef } from "./drive";
+import { DrivePicker } from "./DrivePicker";
+import { SaveChoice } from "./SaveChoice";
 import { StatusBanner } from "./StatusBanner";
 
 type Props = {
@@ -47,14 +51,16 @@ export function OrganizeScreen({
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [saveDriveOpen, setSaveDriveOpen] = useState(false);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (saveDriveOpen) return; // Esc closes the Drive window first
       if (e.key === "Escape") onBack();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onBack]);
+  }, [onBack, saveDriveOpen]);
 
   const kept = tiles.filter((t) => !t.removed);
   const removedCount = tiles.length - kept.length;
@@ -96,12 +102,12 @@ export function OrganizeScreen({
   const outName = `${stem}-organized.pdf`;
   const spec: OrganizePage[] = kept.map((t) => ({ source: t.source, rotate: t.rotate }));
 
-  const run = async (then: (blob: Blob) => void) => {
+  const run = async (then: (blob: Blob) => void | Promise<void>) => {
     setBusy(true);
     setError(null);
     setStatus("Building the file…");
     try {
-      then(await organizePdf(await buildBytes(), fileName, spec));
+      await then(await organizePdf(await buildBytes(), fileName, spec));
     } catch (err) {
       setStatus(null);
       setError(err instanceof Error ? err.message : "Organize failed.");
@@ -148,20 +154,20 @@ export function OrganizeScreen({
         <span className="split-summary" title={summary}>
           {summary}
         </span>
-        <button
-          type="button"
-          className="btn btn-sm"
+        <SaveChoice
+          label="Save as new PDF"
+          primary={false}
           disabled={busy || kept.length === 0}
-          title="Download the organized file; the open file stays as it is"
-          onClick={() =>
-            run((blob) => {
-              downloadBlob(blob, outName);
-              setStatus(`Saved ${outName}. The open file is unchanged.`);
+          title="Save the organized file as a new PDF; the open file stays as it is"
+          onComputer={() =>
+            void run(async (blob) => {
+              setStatus("Choose where to save…");
+              const saved = await saveToComputer(blob, outName);
+              setStatus(saved ? `Saved ${saved}. The open file is unchanged.` : "Not saved.");
             })
           }
-        >
-          Save as new PDF
-        </button>
+          onDrive={() => setSaveDriveOpen(true)}
+        />
         <button
           type="button"
           className="btn btn-sm btn-primary"
@@ -303,6 +309,21 @@ export function OrganizeScreen({
           </div>
         </div>
       </main>
+      {saveDriveOpen && (
+        <DrivePicker
+          mode="folder"
+          saveNote={outName}
+          onClose={() => setSaveDriveOpen(false)}
+          onPickFolder={(folder: DriveFolderRef) => {
+            setSaveDriveOpen(false);
+            void run(async (blob) => {
+              setStatus("Saving to Google Drive…");
+              const res = await uploadToDrive(blob, outName, folder.id);
+              setStatus(`Saved ${res.name} to Google Drive › ${folder.name}. The open file is unchanged.`);
+            });
+          }}
+        />
+      )}
     </>
   );
 }

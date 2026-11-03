@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { loadPdfFromFile, type PdfDocument } from "./pdf";
 import { PageThumb } from "./PageThumb";
-import { downloadBlob, mergePdfs } from "./pages";
+import { mergePdfs } from "./pages";
+import { saveToComputer } from "./saveLocal";
+import { uploadToDrive, type DriveFolderRef } from "./drive";
+import { SaveChoice } from "./SaveChoice";
 import { isImageImportFile, isPdfImportFile, pdfFileFromImage } from "./imageToPdf";
 import { StatusBanner } from "./StatusBanner";
 import { DrivePicker } from "./DrivePicker";
@@ -69,6 +72,7 @@ export function MergeScreen({
   const [dropAt, setDropAt] = useState<{ id: string; after: boolean } | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [driveOpen, setDriveOpen] = useState(false);
+  const [saveDriveOpen, setSaveDriveOpen] = useState(false);
 
   // Destroy the documents this screen opened when it closes.
   const itemsRef = useRef(items);
@@ -82,11 +86,12 @@ export function MergeScreen({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (driveOpen || saveDriveOpen) return; // Esc closes the Drive window first
       if (e.key === "Escape" && (e.target as HTMLElement).tagName !== "INPUT") onBack();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onBack]);
+  }, [onBack, driveOpen, saveDriveOpen]);
 
   const addFiles = async (files: File[]) => {
     setError(null);
@@ -161,12 +166,12 @@ export function MergeScreen({
     return mergePdfs(inputs);
   };
 
-  const run = async (then: (blob: Blob) => void) => {
+  const run = async (then: (blob: Blob) => void | Promise<void>) => {
     setBusy(true);
     setError(null);
     setStatus("Merging…");
     try {
-      then(await build());
+      await then(await build());
     } catch (err) {
       setStatus(null);
       setError(err instanceof Error ? err.message : "Merge failed.");
@@ -229,19 +234,18 @@ export function MergeScreen({
         >
           Open in editor
         </button>
-        <button
-          type="button"
-          className="btn btn-sm btn-primary"
+        <SaveChoice
+          label={busy ? "Working…" : "Save merged PDF"}
           disabled={!canMerge}
-          onClick={() =>
-            run((blob) => {
-              downloadBlob(blob, fileName);
-              setStatus(`Saved ${fileName}.`);
+          onComputer={() =>
+            void run(async (blob) => {
+              setStatus("Choose where to save…");
+              const saved = await saveToComputer(blob, fileName);
+              setStatus(saved ? `Saved ${saved}.` : "Not saved.");
             })
           }
-        >
-          {busy ? "Working…" : "Save merged PDF"}
-        </button>
+          onDrive={() => setSaveDriveOpen(true)}
+        />
       </div>
 
       <main
@@ -378,6 +382,21 @@ export function MergeScreen({
           )}
         </div>
       </main>
+      {saveDriveOpen && (
+        <DrivePicker
+          mode="folder"
+          saveNote={fileName}
+          onClose={() => setSaveDriveOpen(false)}
+          onPickFolder={(folder: DriveFolderRef) => {
+            setSaveDriveOpen(false);
+            void run(async (blob) => {
+              setStatus("Saving to Google Drive…");
+              const res = await uploadToDrive(blob, fileName, folder.id);
+              setStatus(`Saved ${res.name} to Google Drive › ${folder.name}.`);
+            });
+          }}
+        />
+      )}
       {driveOpen && (
         <DrivePicker
           multiple

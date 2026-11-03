@@ -3,12 +3,15 @@ import { useEffect, useRef, useState } from "react";
 type Props = {
   label: string;
   disabled?: boolean;
+  /** Blue main button (default) or a plain one when another button is the main action. */
+  primary?: boolean;
+  title?: string;
   onComputer: () => void;
   onDrive: () => void;
 };
 
 /** A Save button that asks where: this computer or Google Drive. */
-export function SaveChoice({ label, disabled, onComputer, onDrive }: Props) {
+export function SaveChoice({ label, disabled, primary = true, title, onComputer, onDrive }: Props) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -35,8 +38,9 @@ export function SaveChoice({ label, disabled, onComputer, onDrive }: Props) {
     <div className="save-choice" ref={ref}>
       <button
         type="button"
-        className="btn btn-sm btn-primary"
+        className={`btn btn-sm${primary ? " btn-primary" : ""}`}
         disabled={disabled}
+        title={title}
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}

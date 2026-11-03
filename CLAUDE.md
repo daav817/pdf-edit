@@ -286,7 +286,8 @@ Brave puts it in Downloads unless "Ask where to save each file" is on);
 several files → one ZIP. "To Google Drive…" opens DrivePicker in folder mode
 and uploads each output as its own PDF via `POST /api/drive/upload` →
 energia-app `/api/google-drive/upload` (multipart: file, folderId, filename).
-Merge/Organize/main Save still save locally only.
+Merge (Save merged PDF) and Organize (Save as new PDF) use the same Save ▾;
+the main ☰ Save still saves locally only.
 Cloudflare Access: user declined (2026-11-03); sign-in stays energia-app only.
 
 Undo/redo keys accept Z/Y in either case (Caps Lock; Playwright's "Control+Z").
