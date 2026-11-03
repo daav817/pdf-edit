@@ -88,6 +88,9 @@ pdf-edit/
 │     ├─ redact.ts               server API calls (redact, search, text removal)
 │     ├─ useUndoRedo.ts          history with merge keys
 │     ├─ ToolButton.tsx          icon buttons + portal tooltips + inline SVG icons
+│     ├─ SplitScreen.tsx         Split pages screen: one card per output file, skip pages, split lines
+│     ├─ PageThumb.tsx           lazy, one-at-a-time, cached page thumbnails
+│     ├─ pages.ts                split API call + page-list wording ("1, 3, 5–8")
 │     ├─ MainMenu.tsx, CloseFileDialog.tsx, AuthGate.tsx
 │     ├─ types.ts                FormField, TextEdit, RedactRegion, helpers
 │     └─ viewer/viewer.ts,.css   preview viewer page
@@ -102,7 +105,7 @@ pdf-edit/
    │  ├─ textedit.py  remove original words under edited text
    │  ├─ pages.py     split (zip), merge, organize
    │  └─ export.py    txt/docx/html/md/json/rtf with Tesseract OCR fallback
-   └─ tests/          pytest (44 tests): conftest, test_redact, test_api, test_textedit
+   └─ tests/          pytest (52 tests): conftest, test_redact, test_api, test_textedit
 ```
 
 ## Commands (Windows; root folder)
@@ -224,8 +227,17 @@ Phase 1 done:
   close prompt, View edited file viewer, icon toolbar.
 - Docker image + k8s manifests, verified in a container.
 
+Split screen done (2026-11-03): scissors button in the tool group opens it.
+Pages sit in one card per output file; click the gap between pages to split
+(bold blue line between cards, "Remove split" joins), click a page to skip it
+(greyed, "Skipped"). Include all / Skip all / Split every page / Remove splits.
+Saves the same bytes as Save (edits included; unapplied redaction marks not).
+One output → plain PDF, several → ZIP; the open file is not changed. App's
+editor key handler is off while it is open (Ctrl+Z must not undo behind it).
+
 Phase 1 open:
-1. **Split / Merge / Organize screens** in the client (server endpoints exist).
+1. **Merge / Organize screens** in the client (server endpoints exist). Organize
+   must bake in or block pending edits, since edits are stored by page number.
 2. **Push image and deploy** to the home lab (waiting on user's go-ahead).
 3. Retire the old projects once staff confirm.
 
@@ -304,5 +316,7 @@ Known limits:
 - Shell: Git Bash heredocs containing some quote patterns fail on this machine;
   for multi-line patch scripts write a `.py` file and run it.
 - Cookie name `pdfedit_session`; `COOKIE_SECURE=1` in the cluster.
+- `/api/split` takes `pages` lists (or start/end) and returns a PDF for one
+  part, a ZIP for several.
 - `client/dist` is served by FastAPI in production; rebuild after client
   changes before testing the prod server or image.

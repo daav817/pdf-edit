@@ -35,7 +35,7 @@ set `JWT_SECRET` (same value as energia-app) and `ENERGIA_APP_URL` (e.g.
 | POST | `/api/redact/search` | Finds `terms` / `patterns` and returns them as regions to review |
 | GET | `/api/redact/patterns` | Pattern list (SSN, phone, email, long numbers) |
 | POST | `/api/text/remove` | Deletes the original words in `regions` before edited text is drawn (Save uses it) |
-| POST | `/api/split` | `parts` [{name, start, end}] (0-based, inclusive) → ZIP |
+| POST | `/api/split` | `parts` [{name, pages: [0-based…]}] or [{name, start, end}] (inclusive) → one part: PDF, several: ZIP |
 | POST | `/api/merge` | Several `files` → one PDF |
 | POST | `/api/organize` | `pages` [{source, rotate}] → reorder, rotate, delete, extract |
 | POST | `/api/export` | Text as `txt`, `docx`, `html`, `md`, `json` or `rtf` (OCR for scanned pages) |

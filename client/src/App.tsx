@@ -11,13 +11,19 @@ import {
   pdfFileFromImage,
 } from "./imageToPdf";
 import { downloadAnnotatedPageImage } from "./exportImage";
-import { downloadAnnotatedPdf, previewAnnotatedPdf } from "./savePdf";
+import {
+  buildAnnotatedPdf,
+  downloadAnnotatedPdf,
+  previewAnnotatedPdf,
+} from "./savePdf";
+import { SplitScreen } from "./SplitScreen";
 import {
   CopyRegionIcon,
   DrawFieldIcon,
   EditTextIcon,
   PasteIcon,
   RedactIcon,
+  ScissorsIcon,
   ToolButton,
 } from "./ToolButton";
 import { CloseFileDialog } from "./CloseFileDialog";
@@ -139,6 +145,7 @@ export default function App({ onSignOut }: Props) {
   const [redactPatterns, setRedactPatterns] = useState<RedactPattern[]>([]);
   const [chosenPatterns, setChosenPatterns] = useState<string[]>([]);
   const [redactBusy, setRedactBusy] = useState(false);
+  const [splitOpen, setSplitOpen] = useState(false);
 
   const {
     state: annotations,
@@ -250,6 +257,7 @@ export default function App({ onSignOut }: Props) {
       setCopyTextMode(false);
       setPasteTextMode(false);
       setRedactMode(false);
+      setSplitOpen(false);
       setCopiedClip(null);
       setPage(1);
       setDefaultFieldCover(isImageImportFile(f));
@@ -292,6 +300,8 @@ export default function App({ onSignOut }: Props) {
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      // The Split screen has its own keys; editor undo must not run behind it.
+      if (splitOpen) return;
       const mod = e.ctrlKey || e.metaKey;
       if (mod && e.key === "z" && !e.shiftKey) {
         e.preventDefault();
@@ -360,6 +370,7 @@ export default function App({ onSignOut }: Props) {
     copyTextMode,
     pasteTextMode,
     redactMode,
+    splitOpen,
   ]);
 
   const onFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -631,6 +642,8 @@ export default function App({ onSignOut }: Props) {
     setRedactMode(false);
   };
 
+  const closeSplit = useCallback(() => setSplitOpen(false), []);
+
   const fieldCount = fields.length;
   const modifiedTextCount = textEdits.filter(isTextModified).length;
 
@@ -664,6 +677,7 @@ export default function App({ onSignOut }: Props) {
     replaceAnnotations(empty);
     setSavedState(empty);
     setCloseDialogOpen(false);
+    setSplitOpen(false);
     setPage(1);
     setPageReady(false);
     setDefaultFieldCover(false);
@@ -756,7 +770,13 @@ export default function App({ onSignOut }: Props) {
           )}
         </div>
 
-        {doc && (
+        {doc && splitOpen && (
+          <div className="toolbar-center">
+            <span className="page-indicator">Split pages · {pageCount} page{pageCount !== 1 ? "s" : ""}</span>
+          </div>
+        )}
+
+        {doc && !splitOpen && (
           <div className="toolbar-center">
             <button
               type="button"
@@ -838,7 +858,7 @@ export default function App({ onSignOut }: Props) {
           </div>
         )}
 
-        {doc && (
+        {doc && !splitOpen && (
           <div className="toolbar-form">
             <ToolButton
               label="Edit text"
@@ -876,6 +896,16 @@ export default function App({ onSignOut }: Props) {
               pressed={redactMode}
               onClick={toggleRedactMode}
             />
+            <ToolButton
+              label="Split pages"
+              icon={<ScissorsIcon />}
+              className="btn"
+              onClick={() => {
+                handleToolUsed();
+                clearSelection();
+                setSplitOpen(true);
+              }}
+            />
           </div>
         )}
 
@@ -905,6 +935,19 @@ export default function App({ onSignOut }: Props) {
         </div>
       </header>
 
+      {doc && file && splitOpen ? (
+        <SplitScreen
+          doc={doc}
+          pageCount={pageCount}
+          fileName={file.name}
+          buildBytes={() => buildAnnotatedPdf(file, fields, textEdits)}
+          hasEdits={fieldCount > 0 || modifiedTextCount > 0}
+          pendingRedactions={redactions.length}
+          onBack={closeSplit}
+          onDropFile={(f) => void openFile(f)}
+        />
+      ) : (
+      <>
       {doc && (
         // One fixed-height row under the toolbar. Its content changes with the
         // tool and selection, but its height never does, so the page never moves.
@@ -1118,6 +1161,8 @@ export default function App({ onSignOut }: Props) {
           </div>
         )}
       </main>
+      </>
+      )}
 
       {closeDialogOpen && (
         <CloseFileDialog

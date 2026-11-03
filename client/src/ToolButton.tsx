@@ -124,3 +124,15 @@ export const RedactIcon = () =>
       <path d="M4 20h10" />
     </>
   );
+
+/** Scissors: split the file into new PDFs. */
+export const ScissorsIcon = () =>
+  svg(
+    <>
+      <circle cx="6" cy="6" r="3" />
+      <circle cx="6" cy="18" r="3" />
+      <path d="M20 4 8.1 15.9" />
+      <path d="M14.5 14.5 20 20" />
+      <path d="M8.1 8.1 12 12" />
+    </>
+  );

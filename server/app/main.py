@@ -147,9 +147,9 @@ async def text_remove(_user: User, file: UploadFile = File(...), regions: str = 
 @app.post("/api/split")
 async def split(_user: User, file: UploadFile = File(...), parts: str = Form(...)):
     data = await read_pdf(file)
-    out = pages.split_to_zip(data, parse_json(parts, list[pages.SplitPart], "parts"))
+    body, media_type, name = pages.split(data, parse_json(parts, list[pages.SplitPart], "parts"))
     stem = Path(file.filename or "document").stem
-    return download(out, "application/zip", f"{stem}_split.zip")
+    return download(body, media_type, name or f"{stem}_split.zip")
 
 
 @app.post("/api/merge")

@@ -61,6 +61,48 @@ def test_split_out_of_range(client):
     assert res.status_code == 400
 
 
+def test_split_chosen_pages_single_pdf(client):
+    """Pages 1, 3, 5 into one file: a plain PDF, the skipped pages are not in it."""
+    pdf = make_pdf([((72, 72), "Page {n}")], pages=5)
+    parts = [{"name": "picked", "pages": [0, 2, 4]}]
+    res = client.post("/api/split", files=pdf_file(pdf), data={"parts": json.dumps(parts)})
+    assert res.status_code == 200
+    assert res.headers["content-type"] == "application/pdf"
+    assert "picked.pdf" in res.headers["content-disposition"]
+    doc = pymupdf.open(stream=res.content, filetype="pdf")
+    assert [doc[i].get_text().strip() for i in range(doc.page_count)] == ["Page 1", "Page 3", "Page 5"]
+    for skipped in ("Page 2", "Page 4"):
+        assert not any(page.search_for(skipped) for page in doc)
+
+
+def test_split_chosen_pages_zip(client):
+    pdf = make_pdf([((72, 72), "Page {n}")], pages=6)
+    parts = [{"name": "a", "pages": [0, 2]}, {"name": "b", "pages": [5, 3]}]
+    res = client.post("/api/split", files=pdf_file(pdf), data={"parts": json.dumps(parts)})
+    assert res.headers["content-type"] == "application/zip"
+    zf = zipfile.ZipFile(io.BytesIO(res.content))
+    assert zf.namelist() == ["a.pdf", "b.pdf"]
+    b = pymupdf.open(stream=zf.read("b.pdf"), filetype="pdf")
+    assert [p.get_text().strip() for p in b] == ["Page 6", "Page 4"]
+
+
+@pytest.mark.parametrize(
+    "parts",
+    [
+        [{"pages": []}],
+        [{"pages": [0, 9]}],
+        [{"pages": [-1]}],
+        [{"pages": [0], "start": 0, "end": 0}],
+        [{"start": 1}],
+        [],
+    ],
+)
+def test_split_bad_parts(client, parts):
+    pdf = make_pdf([((72, 72), "x")], pages=3)
+    res = client.post("/api/split", files=pdf_file(pdf), data={"parts": json.dumps(parts)})
+    assert res.status_code == 400
+
+
 def test_merge_endpoint(client):
     a = make_pdf([((72, 72), "A{n}")], pages=2)
     b = make_pdf([((72, 72), "B{n}")], pages=1)
