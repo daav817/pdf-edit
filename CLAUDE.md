@@ -96,6 +96,8 @@ pdf-edit/
 │     ├─ useUndoRedo.ts          history with merge keys
 │     ├─ ToolButton.tsx          icon buttons + portal tooltips + inline SVG icons
 │     ├─ SplitScreen.tsx         Split pages screen: one card per output file, skip pages, split lines
+│     ├─ NameFilesDialog.tsx     last step of Split/Merge saves: read pages, name each file, pick where to save
+│     ├─ useBuiltDoc.ts          open file as it will be saved, for that preview
 │     ├─ PageThumb.tsx           lazy, one-at-a-time, cached page thumbnails
 │     ├─ MergeScreen.tsx         Merge files: list (open file first), add/drop files, reorder, save or open
 │     ├─ OrganizeScreen.tsx      Organize pages: drag to reorder, turn, remove; Apply (undoable) or save
@@ -280,13 +282,29 @@ sees their own Drive through the Google connection they made in energia-app
 (account menu → Connect Google). Not connected → 409 with that hint
 (`ENERGIA_PUBLIC_URL`). Lists folders, PDFs, JPG/PNG, Docs/Slides (arrive as
 PDF). energia-app's `GOOGLE_DRIVE_FOLDER_ID` decides the starting folder.
-Split → Save ▾ (2026-11-03): "To this computer…" uses the browser's Save-as
+Name window (2026-11-04, `NameFilesDialog.tsx`): Split's "Save N files…" and
+Merge's "Save merged PDF…" open it, and each Split card has "View & name". One
+row per file (name prefilled with the standard name, "Use standard name",
+blank = standard), a readable page preview with page turns and zoom, selectable
+words (pdf.js text layer, `addTextLayer`) and "Add selected words to name"
+(first pick replaces the standard name, later picks add to it). With edits the
+preview is built from the saved bytes (`useBuiltDoc`). `safeStem` applies the
+server's filename rule on the client ("Saves as ..." note); same names block
+saving. The destination buttons are in this window. Organize's "Save as new
+PDF…" opens it too, previewing the built result (Apply uses the same name).
+Several files to this computer: the user picks one ZIP (editable name, set on
+the client) or separate PDFs. Separate: a folder window where the browser has
+`showDirectoryPicker` (Chrome/Edge; existing names get " (1)", nothing is
+overwritten; it must open straight from the click, before any server call),
+otherwise one download per file 400 ms apart (Brave/Firefox; the browser may
+ask to allow several downloads).
+Split → Save (2026-11-03, destination now in the Name window): "To this computer…" uses the browser's Save-as
 window (`showSaveFilePicker`, Chrome/Edge) or a normal download (Brave/Firefox;
 Brave puts it in Downloads unless "Ask where to save each file" is on);
-several files → one ZIP. "To Google Drive…" opens DrivePicker in folder mode
+"To Google Drive…" opens DrivePicker in folder mode
 and uploads each output as its own PDF via `POST /api/drive/upload` →
 energia-app `/api/google-drive/upload` (multipart: file, folderId, filename).
-Merge (Save merged PDF) and Organize (Save as new PDF) use the same Save ▾.
+The same destinations apply to Merge and Organize through the Name window.
 ☰ → Save as: format list plus "To this computer…" / "To Google Drive…" for
 every format (PDF, page PNG/JPEG, txt/docx/html/md/json/rtf). Drive upload
 (`drive.upload_file`) accepts only those extensions and checks PDF/PNG/JPEG/

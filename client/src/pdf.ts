@@ -57,6 +57,20 @@ export async function renderPageToCanvas(
   return { width: viewport.width, height: viewport.height, viewport };
 }
 
+/** Invisible, selectable words over a page drawn at this CSS scale. */
+export async function addTextLayer(
+  page: pdfjs.PDFPageProxy,
+  container: HTMLElement,
+  scale: number
+): Promise<void> {
+  container.style.setProperty("--scale-factor", String(scale));
+  await new pdfjs.TextLayer({
+    textContentSource: page.streamTextContent(),
+    container,
+    viewport: page.getViewport({ scale }),
+  }).render();
+}
+
 export function syncOverlayCanvas(
   overlay: HTMLCanvasElement,
   viewport: PageRenderResult

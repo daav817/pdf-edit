@@ -45,6 +45,19 @@ export async function splitPdf(
   return { blob, name: dispositionName(res, "split.zip") };
 }
 
+/**
+ * A name without its extension, safe on Windows and Drive (the same rule as the
+ * server's safe_pdf_name). Blank falls back to the standard name.
+ */
+export function safeStem(name: string, fallback: string, ext = ".pdf"): string {
+  let raw = name
+    .trim()
+    .replace(/[<>:"/\\|?*\x00-\x1f]/g, "_")
+    .replace(/^[. ]+|[. ]+$/g, "");
+  if (raw.toLowerCase().endsWith(ext)) raw = raw.slice(0, -ext.length).trim();
+  return raw || fallback;
+}
+
 /** "1, 3, 5–8" */
 export function describePages(pages: number[]): string {
   const out: string[] = [];

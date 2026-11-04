@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { loadPdfFromFile, type PdfDocument } from "./pdf";
 import { PageThumb } from "./PageThumb";
-import { mergePdfs } from "./pages";
+import { mergePdfs, safeStem } from "./pages";
 import { saveToComputer } from "./saveLocal";
 import { uploadToDrive, type DriveFolderRef } from "./drive";
-import { SaveChoice } from "./SaveChoice";
+import { NameFilesDialog, type PreviewPage } from "./NameFilesDialog";
+import { useBuiltDoc } from "./useBuiltDoc";
 import { isImageImportFile, isPdfImportFile, pdfFileFromImage } from "./imageToPdf";
 import { StatusBanner } from "./StatusBanner";
 import { DrivePicker } from "./DrivePicker";
@@ -61,9 +62,8 @@ export function MergeScreen({
         ]
       : []
   );
-  const [outName, setOutName] = useState(
-    currentFile ? `${currentFile.name.replace(/\.pdf$/i, "")}-merged` : "merged"
-  );
+  const standardName = currentFile ? `${currentFile.name.replace(/\.pdf$/i, "")}-merged` : "merged";
+  const [outName, setOutName] = useState(standardName);
   const [busy, setBusy] = useState(false);
   const [adding, setAdding] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
@@ -73,6 +73,10 @@ export function MergeScreen({
   const [dragOver, setDragOver] = useState(false);
   const [driveOpen, setDriveOpen] = useState(false);
   const [saveDriveOpen, setSaveDriveOpen] = useState(false);
+  const [naming, setNaming] = useState(false);
+  /** The open file with its edits, for the Name window; null means `doc` as it is. */
+  const [editedDoc, setEditedDoc] = useState<PdfDocument | null>(null);
+  const builtDoc = useBuiltDoc(buildCurrentBytes);
 
   // Destroy the documents this screen opened when it closes.
   const itemsRef = useRef(items);
@@ -154,7 +158,13 @@ export function MergeScreen({
   };
 
   const totalPages = items.reduce((n, i) => n + i.pages, 0);
-  const fileName = `${outName.trim().replace(/\.pdf$/i, "") || "merged"}.pdf`;
+  const fileName = `${safeStem(outName, standardName)}.pdf`;
+  const previewPages: PreviewPage[] = items.flatMap((it) =>
+    Array.from({ length: it.pages }, (_, i) => ({
+      doc: !it.file && editedDoc ? editedDoc : it.doc,
+      page: i + 1,
+    }))
+  );
 
   const build = async () => {
     const inputs = await Promise.all(
@@ -182,6 +192,36 @@ export function MergeScreen({
 
   const canMerge = items.length >= 2 && !busy && !adding;
   const hasCurrent = items.some((i) => !i.file);
+
+  /** Open the Name window; with edits, it shows the open file as it will be saved. */
+  const openNaming = async () => {
+    setError(null);
+    if (!hasCurrent || !hasEdits) {
+      setNaming(true);
+      return;
+    }
+    setBusy(true);
+    setStatus("Preparing the preview…");
+    try {
+      setEditedDoc(await builtDoc());
+      setStatus(null);
+      setNaming(true);
+    } catch (err) {
+      setStatus(null);
+      setError(err instanceof Error ? err.message : "Could not prepare the preview.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const saveToThisComputer = () => {
+    setNaming(false);
+    void run(async (blob) => {
+      setStatus("Choose where to save…");
+      const saved = await saveToComputer(blob, fileName);
+      setStatus(saved ? `Saved ${saved}.` : "Not saved.");
+    });
+  };
 
   return (
     <>
@@ -234,18 +274,15 @@ export function MergeScreen({
         >
           Open in editor
         </button>
-        <SaveChoice
-          label={busy ? "Working…" : "Save merged PDF"}
+        <button
+          type="button"
+          className="btn btn-sm btn-primary"
           disabled={!canMerge}
-          onComputer={() =>
-            void run(async (blob) => {
-              setStatus("Choose where to save…");
-              const saved = await saveToComputer(blob, fileName);
-              setStatus(saved ? `Saved ${saved}.` : "Not saved.");
-            })
-          }
-          onDrive={() => setSaveDriveOpen(true)}
-        />
+          title="See the merged file, name it, and choose where to save"
+          onClick={() => void openNaming()}
+        >
+          {busy ? "Working…" : "Save merged PDF…"}
+        </button>
       </div>
 
       <main
@@ -382,6 +419,24 @@ export function MergeScreen({
           )}
         </div>
       </main>
+      {naming && !saveDriveOpen && (
+        <NameFilesDialog
+          files={[
+            {
+              key: 0,
+              title: `Merged file · ${items.length} files, ${totalPages} pages`,
+              name: outName,
+              defaultName: standardName,
+              pages: previewPages,
+            },
+          ]}
+          startKey={0}
+          onName={(_, name) => setOutName(name)}
+          onClose={() => setNaming(false)}
+          onComputer={saveToThisComputer}
+          onDrive={() => setSaveDriveOpen(true)}
+        />
+      )}
       {saveDriveOpen && (
         <DrivePicker
           mode="folder"
@@ -389,6 +444,7 @@ export function MergeScreen({
           onClose={() => setSaveDriveOpen(false)}
           onPickFolder={(folder: DriveFolderRef) => {
             setSaveDriveOpen(false);
+            setNaming(false);
             void run(async (blob) => {
               setStatus("Saving to Google Drive…");
               const res = await uploadToDrive(blob, fileName, folder.id);

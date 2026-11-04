@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import type { PdfDocument } from "./pdf";
 import { PageThumb } from "./PageThumb";
-import { describePages, splitPdf, type SplitOutput } from "./pages";
-import { saveToComputer } from "./saveLocal";
+import { describePages, safeStem, splitPdf, type SplitOutput } from "./pages";
+import { pickSaveTarget, saveToComputer, saveToTarget, type SaveTarget } from "./saveLocal";
 import { uploadToDrive, type DriveFolderRef } from "./drive";
 import { DrivePicker } from "./DrivePicker";
-import { SaveChoice } from "./SaveChoice";
+import { NameFilesDialog, type NamedFile } from "./NameFilesDialog";
+import { useBuiltDoc } from "./useBuiltDoc";
 import { ScissorsIcon } from "./ToolButton";
 
 type Props = {
@@ -47,8 +48,15 @@ export function SplitScreen({
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [driveOpen, setDriveOpen] = useState(false);
+  /** The Name window: the file it opens on, or null when closed. */
+  const [naming, setNaming] = useState<number | null>(null);
+  const [previewDoc, setPreviewDoc] = useState<PdfDocument>(doc);
+  const builtDoc = useBuiltDoc(buildBytes);
 
   const stem = fileName.replace(/\.pdf$/i, "");
+  const zipDefault = `${stem}_split`;
+  const [zipName, setZipName] = useState(zipDefault);
+  const [separate, setSeparate] = useState(false);
 
   const groups = useMemo(() => {
     const out: Group[] = [];
@@ -65,13 +73,36 @@ export function SplitScreen({
     return out;
   }, [pageCount, cuts, skipped]);
 
-  const nameFor = (g: Group, index: number) =>
-    names[g.start] ??
-    (groups.length > 1 ? `${stem}_part${index + 1}` : `${stem}_pages`);
+  const standardName = (index: number) =>
+    groups.length > 1 ? `${stem}_part${index + 1}` : `${stem}_pages`;
+  const nameFor = (g: Group, index: number) => names[g.start] ?? standardName(index);
+
+  /** The standard name isn't stored, so it keeps up when splits change the numbering. */
+  const setName = (key: number, name: string) => {
+    const index = groups.findIndex((g) => g.start === key);
+    setNames((n) => {
+      const { [key]: _old, ...rest } = n;
+      return name === standardName(index) ? rest : { ...n, [key]: name };
+    });
+  };
 
   const outputs: SplitOutput[] = groups
-    .map((g, i) => ({ name: nameFor(g, i), pages: g.included }))
+    .map((g, i) => ({ name: safeStem(nameFor(g, i), standardName(i)), pages: g.included }))
     .filter((o) => o.pages.length > 0);
+
+  const namedFiles: NamedFile[] = groups.flatMap((g, i) =>
+    g.included.length === 0
+      ? []
+      : [
+          {
+            key: g.start,
+            title: `File ${i + 1} · page${g.included.length !== 1 ? "s" : ""} ${describePages(g.included)}`,
+            name: nameFor(g, i),
+            defaultName: standardName(i),
+            pages: g.included.map((page) => ({ doc: previewDoc, page })),
+          },
+        ]
+  );
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -112,19 +143,80 @@ export function SplitScreen({
     }
   };
 
+  /** Open the Name window; with edits, it shows the file as it will be saved. */
+  const openNaming = async (key: number) => {
+    setError(null);
+    if (!hasEdits) {
+      setNaming(key);
+      return;
+    }
+    setBusy(true);
+    setStatus("Preparing the preview…");
+    try {
+      setPreviewDoc(await builtDoc());
+      setStatus(null);
+      setNaming(key);
+    } catch (err) {
+      setStatus(null);
+      setError(err instanceof Error ? err.message : "Could not prepare the preview.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   /** One PDF, or a ZIP of all of them, saved where the user picks. */
-  const saveToThisComputer = () =>
-    run(async () => {
-      const { blob, name } = await splitPdf(await buildBytes(), fileName, outputs);
+  const saveToThisComputer = () => {
+    setNaming(null);
+    return run(async () => {
+      const built = await splitPdf(await buildBytes(), fileName, outputs);
+      const blob = built.blob;
+      const name =
+        outputs.length > 1 ? `${safeStem(zipName, zipDefault, ".zip")}.zip` : built.name;
       setStatus("Choose where to save…");
       const saved = await saveToComputer(blob, name);
       if (!saved) return "Not saved.";
       return `Saved ${saved}${outputs.length > 1 ? ` (${outputs.length} PDFs inside)` : ""}. The open file is unchanged.`;
     });
+  };
+
+  /** Each output becomes its own PDF in a chosen folder, or in Downloads. */
+  const saveSeparately = async () => {
+    setNaming(null);
+    let target: SaveTarget | null;
+    try {
+      target = await pickSaveTarget();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not open that folder.");
+      return;
+    }
+    if (!target) {
+      setError(null);
+      setStatus("Not saved.");
+      return;
+    }
+    const chosen = target;
+    await run(async () => {
+      const bytes = await buildBytes();
+      let renamed = 0;
+      for (const [i, o] of outputs.entries()) {
+        setStatus(`Saving ${i + 1} of ${outputs.length}…`);
+        const { blob } = await splitPdf(bytes, fileName, [o]);
+        const wanted = `${o.name}.pdf`;
+        if ((await saveToTarget(chosen, blob, wanted)) !== wanted) renamed++;
+      }
+      if (chosen === "downloads") {
+        return `Sent ${outputs.length} PDFs to your downloads. If the browser asks, allow this site to download several files, then save again if any are missing. The open file is unchanged.`;
+      }
+      return `Saved ${outputs.length} PDFs in ${chosen.name}.${
+        renamed ? ` ${renamed} got a number added because that name was already in the folder.` : ""
+      } The open file is unchanged.`;
+    });
+  };
 
   /** Each output becomes its own PDF in the chosen Drive folder. */
   const saveToDrive = (folder: DriveFolderRef) => {
     setDriveOpen(false);
+    setNaming(null);
     return run(async () => {
       const bytes = await buildBytes();
       const saved: string[] = [];
@@ -191,12 +283,15 @@ export function SplitScreen({
         <span className="split-summary" title={summary}>
           {summary}
         </span>
-        <SaveChoice
-          label={busy ? "Working…" : outputs.length > 1 ? `Save ${outputs.length} files` : "Save PDF"}
-          disabled={busy || outputs.length === 0}
-          onComputer={() => void saveToThisComputer()}
-          onDrive={() => setDriveOpen(true)}
-        />
+        <button
+          type="button"
+          className="btn btn-sm btn-primary"
+          disabled={busy || namedFiles.length === 0}
+          title="See each file, name it, and choose where to save"
+          onClick={() => void openNaming(namedFiles[0].key)}
+        >
+          {busy ? "Working…" : outputs.length > 1 ? `Save ${outputs.length} files…` : "Save PDF…"}
+        </button>
       </div>
 
       <main
@@ -265,7 +360,7 @@ export function SplitScreen({
                   <input
                     className="split-part-name"
                     value={nameFor(g, gi)}
-                    onChange={(e) => setNames((n) => ({ ...n, [g.start]: e.target.value }))}
+                    onChange={(e) => setName(g.start, e.target.value)}
                     aria-label={`Name of file ${gi + 1}`}
                     spellCheck={false}
                   />
@@ -275,6 +370,15 @@ export function SplitScreen({
                       ? "All pages skipped. This file will not be saved."
                       : `${g.included.length} page${g.included.length !== 1 ? "s" : ""}: ${describePages(g.included)}`}
                   </span>
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    disabled={busy || g.included.length === 0}
+                    title="Read this file's pages and name it"
+                    onClick={() => void openNaming(g.start)}
+                  >
+                    View &amp; name
+                  </button>
                 </header>
                 <div className="split-pages">
                   {g.pages.map((p, pi) => {
@@ -315,6 +419,29 @@ export function SplitScreen({
           ))}
         </div>
       </main>
+      {naming !== null && !driveOpen && namedFiles.length > 0 && (
+        <NameFilesDialog
+          files={namedFiles}
+          startKey={naming}
+          onName={setName}
+          zip={
+            namedFiles.length > 1
+              ? {
+                  name: zipName,
+                  defaultName: zipDefault,
+                  onName: setZipName,
+                  separate,
+                  onSeparate: setSeparate,
+                }
+              : undefined
+          }
+          onClose={() => setNaming(null)}
+          onComputer={() =>
+            void (separate && outputs.length > 1 ? saveSeparately() : saveToThisComputer())
+          }
+          onDrive={() => setDriveOpen(true)}
+        />
+      )}
       {driveOpen && (
         <DrivePicker
           mode="folder"

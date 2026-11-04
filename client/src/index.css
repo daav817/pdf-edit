@@ -1271,3 +1271,210 @@ body {
 .close-file-dialog {
   width: min(100%, 34rem);
 }
+
+/* Name window: the last step of Split and Merge saves */
+.name-dialog {
+  width: min(100%, 76rem);
+  height: min(100%, 52rem);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.name-dialog .dialog-title {
+  margin: 0;
+}
+
+.name-dialog-main {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: 0.75rem;
+}
+
+.name-list {
+  flex: 0 0 22rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.name-row {
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.name-row.is-current {
+  border-color: var(--accent);
+  background: var(--surface-2);
+}
+
+.name-row-title {
+  color: var(--muted);
+  margin-bottom: 0.3rem;
+  overflow-wrap: anywhere;
+}
+
+.name-row-input {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.name-row-input .split-part-name {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+}
+
+.name-row.is-current .split-part-name {
+  background: var(--surface);
+}
+
+.name-row-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+  font-size: 0.78rem;
+  min-height: 1.2rem;
+}
+
+.name-row-note {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.name-row-error {
+  color: var(--danger);
+}
+
+.name-reset {
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--accent-hover);
+  cursor: pointer;
+}
+
+.name-reset:disabled {
+  color: var(--muted);
+  opacity: 0.6;
+  cursor: default;
+}
+
+.name-preview {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.name-preview-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+}
+
+.name-preview-count {
+  white-space: nowrap;
+  color: var(--muted);
+}
+
+.name-add {
+  margin-left: auto;
+}
+
+.name-preview-pane {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  scrollbar-gutter: stable;
+  padding: 0.5rem;
+  border-radius: 8px;
+  background: #0a0c10;
+}
+
+.name-preview-page {
+  position: relative;
+  width: fit-content;
+  margin: 0 auto;
+  background: #fff;
+}
+
+.name-preview-page canvas {
+  display: block;
+}
+
+.name-preview-failed {
+  margin: 0;
+  padding: 2rem;
+  color: #333;
+}
+
+/* The words pdf.js lays over the page: invisible, but selectable. */
+.name-preview-text {
+  position: absolute;
+  inset: 0;
+  overflow: clip;
+  line-height: 1;
+  text-align: initial;
+  text-size-adjust: none;
+  transform-origin: 0 0;
+}
+
+.name-preview-text :is(span, br) {
+  position: absolute;
+  color: transparent;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0% 0%;
+}
+
+.name-preview-text span.markedContent {
+  top: 0;
+  height: 0;
+}
+
+.name-preview-text ::selection {
+  background: rgba(40, 110, 255, 0.35);
+  color: transparent;
+}
+
+.name-dialog-foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.name-zip {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-right: auto;
+}
+
+.name-zip label {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.name-zip .split-part-name {
+  width: 13rem;
+}

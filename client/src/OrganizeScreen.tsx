@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
-import type { PdfDocument } from "./pdf";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { loadPdfFromFile, type PdfDocument } from "./pdf";
 import { PageThumb } from "./PageThumb";
-import { organizePdf, type OrganizePage } from "./pages";
+import { organizePdf, safeStem, type OrganizePage } from "./pages";
 import { saveToComputer } from "./saveLocal";
 import { uploadToDrive, type DriveFolderRef } from "./drive";
 import { DrivePicker } from "./DrivePicker";
-import { SaveChoice } from "./SaveChoice";
+import { NameFilesDialog } from "./NameFilesDialog";
 import { StatusBanner } from "./StatusBanner";
 
 type Props = {
@@ -52,6 +52,18 @@ export function OrganizeScreen({
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saveDriveOpen, setSaveDriveOpen] = useState(false);
+  /** The Name window's copy of the organized file; null when closed. */
+  const [preview, setPreview] = useState<PdfDocument | null>(null);
+  const previewRef = useRef<PdfDocument | null>(null);
+  const [typedName, setTypedName] = useState<string | null>(null);
+
+  useEffect(
+    () => () => {
+      void previewRef.current?.destroy();
+      previewRef.current = null;
+    },
+    []
+  );
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -99,7 +111,8 @@ export function OrganizeScreen({
     });
 
   const stem = fileName.replace(/\.pdf$/i, "").replace(/-organized$/i, "");
-  const outName = `${stem}-organized.pdf`;
+  const standardName = `${stem}-organized`;
+  const outName = `${safeStem(typedName ?? standardName, standardName)}.pdf`;
   const spec: OrganizePage[] = kept.map((t) => ({ source: t.source, rotate: t.rotate }));
 
   const run = async (then: (blob: Blob) => void | Promise<void>) => {
@@ -111,6 +124,26 @@ export function OrganizeScreen({
     } catch (err) {
       setStatus(null);
       setError(err instanceof Error ? err.message : "Organize failed.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /** Open the Name window on the file as it will be saved. */
+  const openNaming = async () => {
+    setBusy(true);
+    setError(null);
+    setStatus("Preparing the preview…");
+    try {
+      const blob = await organizePdf(await buildBytes(), fileName, spec);
+      const built = await loadPdfFromFile(new File([blob], outName, { type: "application/pdf" }));
+      void previewRef.current?.destroy();
+      previewRef.current = built;
+      setPreview(built);
+      setStatus(null);
+    } catch (err) {
+      setStatus(null);
+      setError(err instanceof Error ? err.message : "Could not prepare the preview.");
     } finally {
       setBusy(false);
     }
@@ -154,20 +187,15 @@ export function OrganizeScreen({
         <span className="split-summary" title={summary}>
           {summary}
         </span>
-        <SaveChoice
-          label="Save as new PDF"
-          primary={false}
+        <button
+          type="button"
+          className="btn btn-sm"
           disabled={busy || kept.length === 0}
-          title="Save the organized file as a new PDF; the open file stays as it is"
-          onComputer={() =>
-            void run(async (blob) => {
-              setStatus("Choose where to save…");
-              const saved = await saveToComputer(blob, outName);
-              setStatus(saved ? `Saved ${saved}. The open file is unchanged.` : "Not saved.");
-            })
-          }
-          onDrive={() => setSaveDriveOpen(true)}
-        />
+          title="See the organized file, name it, and save it as a new PDF; the open file stays as it is"
+          onClick={() => void openNaming()}
+        >
+          Save as new PDF…
+        </button>
         <button
           type="button"
           className="btn btn-sm btn-primary"
@@ -309,6 +337,31 @@ export function OrganizeScreen({
           </div>
         </div>
       </main>
+      {preview && !saveDriveOpen && (
+        <NameFilesDialog
+          files={[
+            {
+              key: 0,
+              title: `Organized file · ${preview.numPages} page${preview.numPages !== 1 ? "s" : ""}`,
+              name: typedName ?? standardName,
+              defaultName: standardName,
+              pages: Array.from({ length: preview.numPages }, (_, i) => ({ doc: preview, page: i + 1 })),
+            },
+          ]}
+          startKey={0}
+          onName={(_, name) => setTypedName(name)}
+          onClose={() => setPreview(null)}
+          onComputer={() => {
+            setPreview(null);
+            void run(async (blob) => {
+              setStatus("Choose where to save…");
+              const saved = await saveToComputer(blob, outName);
+              setStatus(saved ? `Saved ${saved}. The open file is unchanged.` : "Not saved.");
+            });
+          }}
+          onDrive={() => setSaveDriveOpen(true)}
+        />
+      )}
       {saveDriveOpen && (
         <DrivePicker
           mode="folder"
@@ -316,6 +369,7 @@ export function OrganizeScreen({
           onClose={() => setSaveDriveOpen(false)}
           onPickFolder={(folder: DriveFolderRef) => {
             setSaveDriveOpen(false);
+            setPreview(null);
             void run(async (blob) => {
               setStatus("Saving to Google Drive…");
               const res = await uploadToDrive(blob, outName, folder.id);
